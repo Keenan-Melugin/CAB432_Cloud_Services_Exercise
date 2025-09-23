@@ -37,3 +37,6 @@ pids/
 
 # Test coverage
 coverage/
+
+# Documents folder
+documents/
