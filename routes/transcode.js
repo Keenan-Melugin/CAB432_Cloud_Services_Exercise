@@ -1,0 +1,692 @@
+const express = require('express');
+const ffmpeg = require('fluent-ffmpeg');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+const database = require('../utils/database');
+const { authenticateToken, requireAdmin } = require('../utils/auth');
+const storage = require('../utils/storage');
+
+const router = express.Router();
+
+// Store SSE connections for real-time updates
+const sseConnections = new Map();
+
+// Function to broadcast job updates to connected clients
+function broadcastJobUpdate(userId, jobUpdate) {
+  const connections = sseConnections.get(userId);
+  if (connections && connections.length > 0) {
+    const data = JSON.stringify({ type: 'jobUpdate', data: jobUpdate });
+    connections.forEach(res => {
+      try {
+        res.write(`data: ${data}\n\n`);
+      } catch (error) {
+        console.log('Error sending SSE update:', error.message);
+      }
+    });
+  }
+}
+
+// POST /transcode/jobs - Create new transcoding job
+router.post('/jobs', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      video_id, 
+      target_resolution, 
+      target_format, 
+      quality_preset = 'medium',
+      bitrate = '1000k',
+      repeat_count = 1
+    } = req.body;
+
+    if (!video_id || !target_resolution || !target_format) {
+      return res.status(400).json({ 
+        error: 'video_id, target_resolution, and target_format are required' 
+      });
+    }
+
+    // Validate quality preset
+    const validPresets = ['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'];
+    if (!validPresets.includes(quality_preset)) {
+      return res.status(400).json({ 
+        error: 'Invalid quality preset. Valid options: ' + validPresets.join(', ')
+      });
+    }
+
+    // Validate bitrate
+    const validBitrates = ['500k', '1000k', '2000k', '4000k', '8000k'];
+    if (!validBitrates.includes(bitrate)) {
+      return res.status(400).json({ 
+        error: 'Invalid bitrate. Valid options: ' + validBitrates.join(', ')
+      });
+    }
+
+    // Validate repeat count
+    const repeatCountNum = parseInt(repeat_count);
+    if (isNaN(repeatCountNum) || repeatCountNum < 1) {
+      return res.status(400).json({ 
+        error: 'Invalid repeat count. Must be 1 or greater.'
+      });
+    }
+
+    // Verify video exists and user has access
+    let videoQuery = 'SELECT * FROM videos WHERE id = ?';
+    let videoParams = [video_id];
+
+    if (req.user.role !== 'admin') {
+      videoQuery += ' AND user_id = ?';
+      videoParams.push(req.user.id);
+    }
+
+    const video = await database.get(videoQuery, videoParams);
+    
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found or access denied' });
+    }
+
+    // Create transcoding job
+    const jobId = uuidv4();
+    
+    await database.run(
+      `INSERT INTO transcode_jobs (id, user_id, video_id, original_filename, target_resolution, target_format, quality_preset, bitrate, repeat_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [jobId, req.user.id, video_id, video.original_name, target_resolution, target_format, quality_preset, bitrate, repeatCountNum]
+    );
+
+    console.log(`Transcoding job created: ${jobId} by ${req.user.username}`);
+
+    res.json({
+      message: 'Transcoding job created successfully',
+      job: {
+        id: jobId,
+        video_id,
+        target_resolution,
+        target_format,
+        quality_preset,
+        bitrate,
+        repeat_count: repeatCountNum,
+        status: 'pending'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating transcoding job:', error);
+    res.status(500).json({ error: 'Failed to create transcoding job' });
+  }
+});
+
+// POST /transcode/start/:jobId - Start CPU-intensive transcoding
+router.post('/start/:jobId', authenticateToken, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    // Get job details including storage keys
+    let jobQuery = 'SELECT tj.*, v.file_path, v.original_name, v.storage_key FROM transcode_jobs tj JOIN videos v ON tj.video_id = v.id WHERE tj.id = ?';
+    let jobParams = [jobId];
+
+    if (req.user.role !== 'admin') {
+      jobQuery += ' AND tj.user_id = ?';
+      jobParams.push(req.user.id);
+    }
+
+    const job = await database.get(jobQuery, jobParams);
+    
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found or access denied' });
+    }
+
+    if (job.status !== 'pending') {
+      return res.status(400).json({ error: 'Job is not in pending status' });
+    }
+
+    // Resource validation before processing
+    try {
+      // Check if input file exists and get its size
+      const fs = require('fs');
+      if (job.file_path && fs.existsSync(job.file_path)) {
+        const stats = fs.statSync(job.file_path);
+        const fileSizeGB = stats.size / (1024 * 1024 * 1024);
+        
+        // Warn for large files and high-resource combinations
+        if (fileSizeGB > 1 && job.quality_preset === 'veryslow') {
+          console.warn(`Warning: Large file (${fileSizeGB.toFixed(2)}GB) with veryslow preset - may cause memory issues`);
+        }
+        
+        // Reject extremely large files to prevent system crashes
+        if (fileSizeGB > 5) {
+          return res.status(400).json({ 
+            error: `File too large (${fileSizeGB.toFixed(2)}GB). Maximum supported: 5GB. Try using 'fast' or 'ultrafast' preset for large files.` 
+          });
+        }
+      }
+    } catch (error) {
+      console.error('File validation error:', error.message);
+    }
+
+    // Update job status to processing
+    await database.run(
+      'UPDATE transcode_jobs SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ?',
+      ['processing', jobId]
+    );
+
+    // Start transcoding asynchronously (this is the CPU-intensive part!)
+    transcodeVideoAsync(job);
+
+    res.json({
+      message: 'Transcoding started successfully',
+      job: {
+        id: jobId,
+        status: 'processing',
+        message: 'Video transcoding in progress. This will consume high CPU resources.'
+      }
+    });
+
+    console.log(`Started transcoding job: ${jobId}`);
+
+  } catch (error) {
+    console.error('Error starting transcoding:', error);
+    res.status(500).json({ error: 'Failed to start transcoding' });
+  }
+});
+
+// GET /transcode/jobs - List user's transcoding jobs
+router.get('/jobs', authenticateToken, async (req, res) => {
+  try {
+    let query = 'SELECT * FROM transcode_jobs';
+    let params = [];
+
+    if (req.user.role !== 'admin') {
+      query += ' WHERE user_id = ?';
+      params = [req.user.id];
+    }
+    
+    query += ' ORDER BY created_at DESC';
+
+    const jobs = await database.all(query, params);
+
+    if (!Array.isArray(jobs)) {
+      return res.json([]);
+    }
+
+    res.json(jobs);
+
+  } catch (error) {
+    console.error('Error fetching transcoding jobs:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch transcoding jobs', details: error.message });
+  }
+});
+
+// GET /transcode/jobs/:jobId - Get specific job details
+router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
+  try {
+    let query = 'SELECT * FROM transcode_jobs WHERE id = ?';
+    let params = [req.params.jobId];
+
+    if (req.user.role !== 'admin') {
+      query += ' AND user_id = ?';
+      params.push(req.user.id);
+    }
+
+    const job = await database.get(query, params);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    res.json(job);
+
+  } catch (error) {
+    console.error('Error fetching job:', error);
+    res.status(500).json({ error: 'Failed to fetch job' });
+  }
+});
+
+// GET /transcode/download/:jobId - Download processed video
+router.get('/download/:jobId', authenticateToken, async (req, res) => {
+  try {
+    console.log('[DEBUG] Download request for job:', req.params.jobId, 'by user:', req.user.id);
+    
+    let query = 'SELECT * FROM transcode_jobs WHERE id = ? AND status = \'completed\'';
+    let params = [req.params.jobId];
+
+    if (req.user.role !== 'admin') {
+      query += ' AND user_id = ?';
+      params.push(req.user.id);
+    }
+
+    const job = await database.get(query, params);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Completed job not found' });
+    }
+
+    if (!job.output_path || !fs.existsSync(job.output_path)) {
+      return res.status(404).json({ error: 'Output file not found' });
+    }
+
+    // Send file for download with correct extension
+    const baseFilename = job.original_filename.replace(/\.[^/.]+$/, '');
+    const repeatSuffix = job.repeat_count > 1 ? `_${job.repeat_count}x` : '';
+    const filename = `transcoded_${baseFilename}_${job.target_resolution}${repeatSuffix}.${job.target_format}`;
+    
+    // Set correct content type for WebM files
+    if (job.target_format === 'webm') {
+      res.setHeader('Content-Type', 'video/webm');
+    } else if (job.target_format === 'mp4') {
+      res.setHeader('Content-Type', 'video/mp4');
+    }
+    
+    // Sanitize filename for HTTP header (remove/replace invalid characters)
+    const sanitizedFilename = filename
+      .replace(/[^\w\s\-_\.]/g, '_') // Replace invalid chars with underscore
+      .replace(/\s+/g, '_')          // Replace spaces with underscore
+      .replace(/_+/g, '_');          // Collapse multiple underscores
+    
+    // Set Content-Disposition header with sanitized filename
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
+    
+    res.download(job.output_path, filename);
+
+  } catch (error) {
+    console.error('Error downloading file:', error);
+    res.status(500).json({ error: 'Failed to download file' });
+  }
+});
+
+// GET /transcode/events - Server-Sent Events for real-time job updates
+router.get('/events', (req, res) => {
+  // Extract token from query parameter since EventSource doesn't support custom headers
+  const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication token required' });
+  }
+  
+  // Verify token manually
+  const jwt = require('jsonwebtoken');
+  const { JWT_SECRET } = require('../utils/auth');
+  let user;
+  try {
+    user = jwt.verify(token, JWT_SECRET);
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token' });
+  }
+  // Set headers for SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+
+  // Store this connection
+  const userId = user.id;
+  if (!sseConnections.has(userId)) {
+    sseConnections.set(userId, []);
+  }
+  sseConnections.get(userId).push(res);
+
+  // Send initial connection message
+  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to job updates' })}\n\n`);
+
+  // Clean up on client disconnect
+  req.on('close', () => {
+    const connections = sseConnections.get(userId);
+    if (connections) {
+      const index = connections.indexOf(res);
+      if (index !== -1) {
+        connections.splice(index, 1);
+      }
+      if (connections.length === 0) {
+        sseConnections.delete(userId);
+      }
+    }
+  });
+});
+
+// GET /transcode/stats - System statistics (admin only)
+router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const stats = await Promise.all([
+      database.get('SELECT COUNT(*) as count FROM transcode_jobs'),
+      database.get('SELECT COUNT(*) as count FROM transcode_jobs WHERE status = \'processing\''),
+      database.get('SELECT COUNT(*) as count FROM transcode_jobs WHERE status = \'completed\''),
+      database.get('SELECT COUNT(*) as count FROM transcode_jobs WHERE status = \'failed\''),
+    ]);
+
+    res.json({
+      totalJobs: stats[0].count,
+      activeJobs: stats[1].count,
+      completedJobs: stats[2].count,
+      failedJobs: stats[3].count,
+      diskUsage: 'Check AWS console for disk usage'
+    });
+
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    res.status(500).json({ error: 'Failed to get system stats' });
+  }
+});
+
+// ASYNC FUNCTION: CPU-intensive video transcoding with cloud storage support
+async function transcodeVideoAsync(job) {
+  const startTime = Date.now();
+  let inputPath = job.file_path;
+  let outputPath = path.join('uploads', 'processed', `${job.id}.${job.target_format}`);
+  let tempInputPath = null;
+  let outputStorageKey = null;
+  
+  try {
+    const repeatCount = job.repeat_count || 1;
+    console.log(`Starting CPU-intensive transcoding for job ${job.id}`);
+    console.log(`Input: ${job.file_path}`);
+    console.log(`Target: ${job.target_resolution} ${job.target_format}`);
+    console.log(`Quality: ${job.quality_preset || 'medium'} | Bitrate: ${job.bitrate || '1000k'}`);
+    console.log(`Repeat Count: ${repeatCount}x (for sustained CPU load)`);
+
+    // Check if we need to download the input file from cloud storage
+    if (process.env.STORAGE_PROVIDER === 's3' && job.storage_key) {
+      console.log(`Downloading input file from cloud storage: ${job.storage_key}`);
+      const downloadResult = await storage.downloadFile(job.storage_key);
+      
+      // Create temporary file for FFmpeg processing
+      tempInputPath = path.join('uploads', 'temp', `input_${job.id}_${Date.now()}.tmp`);
+      await fs.promises.mkdir(path.dirname(tempInputPath), { recursive: true });
+      await fs.promises.writeFile(tempInputPath, downloadResult.buffer);
+      inputPath = tempInputPath;
+      
+      console.log(`Downloaded and cached input file: ${tempInputPath}`);
+    }
+
+    // Ensure output directory exists
+    await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
+
+    // Store all iteration file paths for later concatenation
+    const iterationPaths = [];
+
+    // Process video multiple times for sustained CPU load  
+    for (let iteration = 1; iteration <= repeatCount; iteration++) {
+      // Always create iteration-specific files for concatenation
+      const currentOutputPath = path.join('uploads', 'processed', `${job.id}_iteration_${iteration}.${job.target_format}`);
+      iterationPaths.push(currentOutputPath);
+      
+      
+      await new Promise((resolve, reject) => {
+      const qualityPreset = job.quality_preset || 'medium';
+      const bitrate = job.bitrate || '1000k';
+      
+      // Configure codecs and options based on target format
+      let videoCodec, audioCodec, formatSpecificOptions = [];
+      
+      if (job.target_format === 'webm') {
+        // WebM format: use VP8 video codec and Vorbis audio codec (more reliable)
+        videoCodec = 'libvpx';
+        audioCodec = 'libvorbis';
+        
+        // WebM-specific options (VP8 quality settings)
+        const vpxPresetMap = {
+          'ultrafast': '0',  // Fastest encoding
+          'fast': '1',       // Fast encoding
+          'medium': '2',     // Balanced (default)
+          'slow': '4',       // Slower, better quality
+          'veryslow': '5'    // Slowest, best quality
+        };
+        
+        formatSpecificOptions = [
+          '-cpu-used', vpxPresetMap[qualityPreset] || '2'
+        ];
+      } else {
+        // MP4 format: use H.264 video codec and AAC audio codec
+        videoCodec = 'libx264';
+        audioCodec = 'aac';
+        
+        // MP4-specific options (H.264 preset)
+        formatSpecificOptions = [
+          '-preset', qualityPreset,
+          '-movflags', '+faststart'  // Optimize for streaming
+        ];
+      }
+      
+      let command = ffmpeg(inputPath)
+        .videoCodec(videoCodec)         // Format-specific video codec
+        .audioCodec(audioCodec)         // Format-specific audio codec
+        .size(job.target_resolution)    // Resize video (very CPU heavy)
+        .videoBitrate(bitrate)          // User-selected bitrate
+        .audioBitrate('128k')           // Limit audio bitrate
+        .addOption('-threads', '0')     // Auto-detect CPU threads (optimal for any instance type)
+        .addOption('-bufsize', '2M')    // Buffer size limit
+        .addOption('-maxrate', bitrate) // Max bitrate to prevent spikes
+        .format(job.target_format);     // Format conversion
+      
+      // Add format-specific options in pairs
+      for (let i = 0; i < formatSpecificOptions.length; i += 2) {
+        const optionName = formatSpecificOptions[i];
+        const optionValue = formatSpecificOptions[i + 1];
+        if (optionName && optionValue) {
+          command = command.addOption(optionName, optionValue);
+        }
+      }
+      
+      command
+        .on('start', (commandLine) => {
+          console.log(`FFmpeg command: ${commandLine}`);
+          
+          // Broadcast job start notification
+          broadcastJobUpdate(job.user_id, {
+            id: job.id,
+            status: 'processing',
+            progress: {
+              percent: 0,
+              timemark: '00:00:00',
+              currentKbps: 0,
+              fps: 0,
+              frames: 0
+            },
+            message: 'Transcoding started...'
+          });
+        })
+        .on('progress', (progress) => {
+          const percent = Math.round(progress.percent || 0);
+          const currentTime = progress.timemark || '00:00:00';
+          const currentKbs = Math.round(progress.currentKbps || 0);
+          
+          console.log(`Processing: ${percent}% done (${currentTime}, ${currentKbs}kb/s)`);
+          
+          // Broadcast real-time progress to connected clients
+          broadcastJobUpdate(job.user_id, {
+            id: job.id,
+            status: 'processing',
+            progress: {
+              percent: percent,
+              timemark: currentTime,
+              currentKbps: currentKbs,
+              fps: Math.round(progress.currentFps || 0),
+              frames: progress.frames || 0
+            }
+          });
+        })
+        .on('end', () => {
+          console.log(`Transcoding completed for job ${job.id}`);
+          resolve();
+        })
+        .on('error', (err) => {
+          console.error(`FFmpeg error for job ${job.id}:`, err.message);
+          
+          // Provide specific guidance for common errors
+          let userFriendlyError = err.message;
+          if (err.message.includes('SIGKILL') || err.message.includes('killed')) {
+            userFriendlyError = 'Processing failed due to insufficient memory or CPU resources. Try using a faster preset (ultrafast/fast) or smaller resolution.';
+          } else if (err.message.includes('No space left')) {
+            userFriendlyError = 'Processing failed due to insufficient disk space.';
+          } else if (err.message.includes('Input/output error')) {
+            userFriendlyError = 'Input file may be corrupted or in an unsupported format.';
+          }
+          
+          const enhancedError = new Error(userFriendlyError);
+          enhancedError.originalError = err.message;
+          reject(enhancedError);
+        })
+        .save(currentOutputPath);
+      });
+    }
+
+    // If repeat count > 1, concatenate all iterations into a single video
+    
+    if (repeatCount > 1) {
+      
+      await new Promise((resolve, reject) => {
+        // Use FFmpeg's file-based concatenation method (more reliable)
+        const concatListPath = path.join('uploads', 'processed', `${job.id}_concat_list.txt`);
+        
+        // Create concat list file
+        const concatList = iterationPaths.map(filePath => `file '${path.resolve(filePath)}'`).join('\n');
+        
+        
+        // Write the concat list to file
+        fs.writeFileSync(concatListPath, concatList);
+        
+        // Create FFmpeg command using file-based concatenation
+        const command = ffmpeg()
+          .input(concatListPath)
+          .inputOptions(['-f', 'concat', '-safe', '0'])
+          .videoCodec('copy')  // Use copy for speed since all files have same encoding
+          .audioCodec('copy')  // Use copy for speed since all files have same encoding
+          .format(job.target_format)
+          .on('start', (commandLine) => {
+            console.log(`Concatenation FFmpeg command: ${commandLine}`);
+          })
+          .on('progress', (progress) => {
+            const percent = Math.round(progress.percent || 0);
+            console.log(`Concatenating: ${percent}% complete`);
+            
+            // Broadcast concatenation progress
+            broadcastJobUpdate(job.user_id, {
+              id: job.id,
+              status: 'processing',
+              progress: {
+                percent: Math.min(95 + Math.round(percent / 20), 99), // Show 95-99% during concatenation
+                timemark: progress.timemark || '00:00:00',
+                currentKbps: Math.round(progress.currentKbps || 0),
+                fps: Math.round(progress.currentFps || 0)
+              },
+              message: `Stitching ${repeatCount} iterations together...`
+            });
+          })
+          .on('end', () => {
+            
+            // Clean up concat list file
+            try {
+              fs.unlinkSync(concatListPath);
+            } catch (err) {
+              console.warn(`Warning: Could not clean up concat list file: ${err.message}`);
+            }
+            
+            resolve();
+          })
+          .on('error', (err) => {
+            console.error(`Concatenation error:`, err.message);
+            
+            // Clean up concat list file on error
+            try {
+              fs.unlinkSync(concatListPath);
+            } catch (cleanupErr) {
+              console.warn(`Warning: Could not clean up concat list file on error: ${cleanupErr.message}`);
+            }
+            
+            reject(new Error(`Failed to concatenate video iterations: ${err.message}`));
+          })
+          .save(outputPath);
+      });
+      
+      // Clean up individual iteration files after successful concatenation
+      for (const filePath of iterationPaths) {
+        try {
+          await fs.promises.unlink(filePath);
+        } catch (err) {
+          console.warn(`Warning: Could not clean up iteration file ${filePath}: ${err.message}`);
+        }
+      }
+    } else {
+      // If only 1 iteration, rename the single file to the final output path
+      if (iterationPaths.length === 1) {
+        await fs.promises.rename(iterationPaths[0], outputPath);
+      }
+    }
+
+    // Upload processed file to cloud storage if using cloud provider
+    if (process.env.STORAGE_PROVIDER === 's3') {
+      console.log(`Uploading processed file to cloud storage...`);
+      const outputBuffer = await fs.promises.readFile(outputPath);
+      const outputFilename = `transcoded_${job.id}_${job.target_resolution}.${job.target_format}`;
+      
+      const uploadResult = await storage.uploadFile(outputBuffer, outputFilename, {
+        category: 'processed',
+        contentType: `video/${job.target_format}`,
+        userId: job.user_id
+      });
+      
+      outputStorageKey = uploadResult.key;
+      outputPath = uploadResult.location;
+      
+      console.log(`Uploaded processed file to cloud: ${outputStorageKey}`);
+      
+      // Clean up local file after upload
+      try {
+        await fs.promises.unlink(`uploads/processed/${job.id}.${job.target_format}`);
+      } catch (err) {
+        console.warn(`Warning: Could not clean up local file: ${err.message}`);
+      }
+    }
+
+    // Update job as completed
+    const processingTime = Math.round((Date.now() - startTime) / 1000);
+    
+    await database.run(
+      `UPDATE transcode_jobs 
+       SET status = ?, completed_at = CURRENT_TIMESTAMP, output_path = ?, processing_time_seconds = ?, output_storage_key = ?
+       WHERE id = ?`,
+      ['completed', outputPath, processingTime, outputStorageKey, job.id]
+    );
+
+    console.log(`Job ${job.id} completed in ${processingTime} seconds`);
+
+    // Broadcast job completion to connected clients
+    broadcastJobUpdate(job.user_id, {
+      id: job.id,
+      status: 'completed',
+      processing_time_seconds: processingTime,
+      output_path: outputPath
+    });
+
+  } catch (error) {
+    console.error(`Transcoding failed for job ${job.id}:`, error.message);
+    
+    // Update job as failed
+    await database.run(
+      `UPDATE transcode_jobs 
+       SET status = ?, error_message = ?, completed_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      ['failed', error.message, job.id]
+    );
+
+    // Broadcast job failure to connected clients
+    broadcastJobUpdate(job.user_id, {
+      id: job.id,
+      status: 'failed',
+      error_message: error.message
+    });
+  } finally {
+    // Clean up temporary input file if it was created
+    if (tempInputPath) {
+      try {
+        await fs.promises.unlink(tempInputPath);
+      } catch (err) {
+        console.warn(`Warning: Could not clean up temporary file: ${err.message}`);
+      }
+    }
+  }
+}
+
+module.exports = router;

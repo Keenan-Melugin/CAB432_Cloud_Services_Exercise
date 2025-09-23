@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Transcoding Service</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        h1, h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        input, select, button {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        input[type="file"], select {
+            width: 100%;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 12px 20px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        
+        .hidden { display: none; }
+        
+        #jobsList {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .job-item {
+            border: 1px solid #eee;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        
+        .progress-container {
+            width: 100%;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            margin: 8px 0;
+            height: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 20px;
+            color: #333;
+            font-weight: bold;
+            font-size: 12px;
+            top: 0;
+            left: 0;
+        }
+        
+        .progress-details {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .user-role {
+            background-color: #007bff;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .user-role.admin {
+            background-color: #dc3545;
+        }
+        
+        
+        
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Video Transcoding Service</h1>
+        <p>Simple video transcoding for CAB432 Assignment</p>
+    </div>
+
+    <!-- Login Section -->
+    <div class="container" id="loginSection">
+        <h2>Login</h2>
+        <div class="form-group">
+            <label>Username:</label>
+            <input type="text" id="username" placeholder="user1 or admin1">
+        </div>
+        <div class="form-group">
+            <label>Password:</label>
+            <input type="password" id="password" placeholder="password">
+        </div>
+        <button onclick="login()">Login</button>
+        <div id="loginStatus"></div>
+    </div>
+
+    <!-- Main App (hidden until logged in) -->
+    <div id="mainApp" class="hidden">
+        
+        <!-- User Welcome Section -->
+        <div class="container">
+            <div class="status success" id="userWelcome">
+                Welcome back, <strong id="currentUsername">User</strong>! 
+                <span id="userRole" class="user-role"></span>
+            </div>
+        </div>
+        
+
+        <!-- Upload Video Section -->
+        <div class="container">
+            <h2>Upload Video File</h2>
+            <div class="form-group">
+                <label>Select Video File:</label>
+                <input type="file" id="videoFile" accept="video/*">
+            </div>
+            <button onclick="uploadVideo()" id="uploadButton">Upload Video</button>
+            <div id="uploadProgress" class="progress-container" style="display: none;">
+                <div id="uploadProgressBar" class="progress-bar" style="width: 0%"></div>
+                <div id="uploadProgressText" class="progress-text">0%</div>
+            </div>
+            <div id="uploadStatus"></div>
+        </div>
+
+        <!-- Create Transcoding Job -->
+        <div class="container">
+            <h2>Create Transcoding Job</h2>
+            <div class="form-group">
+                <label>Select Video:</label>
+                <select id="videoSelect">
+                    <option value="">Select a video...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Target Resolution:</label>
+                <select id="resolution">
+                    <option value="3840x2160">4K Ultra HD (3840x2160)</option>
+                    <option value="2560x1440">1440p 2K (2560x1440)</option>
+                    <option value="1920x1080">1080p Full HD (1920x1080)</option>
+                    <option value="1280x720" selected>720p HD (1280x720)</option>
+                    <option value="854x480">480p SD (854x480)</option>
+                    <option value="640x360">360p Mobile (640x360)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Quality Preset:</label>
+                <select id="qualityPreset">
+                    <option value="ultrafast">Ultra Fast (lowest quality, fastest)</option>
+                    <option value="fast">Fast (good for previews)</option>
+                    <option value="medium" selected>Medium (balanced)</option>
+                    <option value="slow">Slow (high quality)</option>
+                    <option value="veryslow">Very Slow (best quality)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Video Bitrate:</label>
+                <select id="bitrate">
+                    <option value="500k">500k (mobile, small file)</option>
+                    <option value="1000k" selected>1000k (web streaming)</option>
+                    <option value="2000k">2000k (high quality)</option>
+                    <option value="4000k">4000k (professional)</option>
+                    <option value="8000k">8000k (broadcast quality)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Output Format:</label>
+                <select id="format">
+                    <option value="mp4">MP4 (universal compatibility)</option>
+                    <option value="webm">WebM (web optimized)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Repeat Count (for CPU load testing):</label>
+                <input type="number" id="repeatCount" min="1" value="5" placeholder="Enter number of repeats (1+)">
+                <small style="color: #666; font-size: 12px; display: block; margin-top: 5px;">
+                    Tip: Repeats create one long video (all iterations stitched together). 5x = ~5 minutes processing + 5x longer final video!
+                </small>
+            </div>
+            <button onclick="createTranscodeJob()">Create Job</button>
+            <div id="jobStatus"></div>
+            
+            <div class="status info" style="margin-top: 15px;">
+                <strong>Performance Tips:</strong><br>
+                • <strong>Large files:</strong> Use "Fast" or "Ultra Fast" presets<br>
+                • <strong>Best quality:</strong> Use "Slow" preset with lower resolutions<br>
+                • <strong>Quick previews:</strong> Use "Ultra Fast" + 360p/480p<br>
+                • <strong>Web streaming:</strong> Use "Medium" + 720p + 1000k bitrate<br>
+                • <strong>CPU load testing:</strong> Use 5x-10x repeat count for sustained high CPU usage
+            </div>
+        </div>
+
+        <!-- Jobs List -->
+        <div class="container">
+            <h2>Transcoding Jobs</h2>
+            <button onclick="refreshJobs()">Refresh Jobs</button>
+            <div id="jobsList"></div>
+        </div>
+
+        <!-- System Stats (for admins) -->
+        <div class="container" id="adminSection" style="display: none;">
+            <h2>System Stats (Admin Only)</h2>
+            <button onclick="getSystemStats()">Get System Stats</button>
+            <div id="systemStats"></div>
+        </div>
+
+        <div class="container">
+            <button onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <script src="app.js?v=20250828final"></script>
+</body>
+</html>
