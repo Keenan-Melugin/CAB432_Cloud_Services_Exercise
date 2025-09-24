@@ -22,7 +22,9 @@
     "multer": "^1.4.4",
     "pg": "^8.16.3",
     "sqlite3": "^5.1.4",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
   },
   "keywords": [
     "video",

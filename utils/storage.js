@@ -4,6 +4,10 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const { s3Client, buckets } = require('./aws-config');
+const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { v4: uuidv4 } = require('uuid');
 
 class StorageProvider {
   constructor(config = {}) {
@@ -92,25 +96,117 @@ class StorageProvider {
     return `file://${path.resolve(key)}`;
   }
 
-  // S3 implementation placeholders (Phase 2)
+  // S3 implementation
   async _uploadS3(buffer, filename, metadata) {
-    // TODO: Implement S3 upload using AWS SDK
-    throw new Error('S3 implementation not yet available');
+    try {
+      const category = metadata.category || 'original';
+      const bucket = category === 'original' ? buckets.original : buckets.processed;
+      const key = `${uuidv4()}-${filename}`;
+
+      const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: metadata.contentType || 'application/octet-stream',
+        Metadata: {
+          originalName: filename,
+          category: category,
+          uploadedAt: new Date().toISOString()
+        }
+      });
+
+      const result = await s3Client.send(command);
+
+      return {
+        key: key,
+        location: `s3://${bucket}/${key}`,
+        size: buffer.length,
+        bucket: bucket,
+        etag: result.ETag
+      };
+    } catch (error) {
+      throw new Error(`S3 upload failed: ${error.message}`);
+    }
   }
 
   async _downloadS3(key) {
-    // TODO: Implement S3 download using AWS SDK
-    throw new Error('S3 implementation not yet available');
+    try {
+      // Determine which bucket based on key or metadata
+      const bucket = key.includes('processed') ? buckets.processed : buckets.original;
+
+      const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key
+      });
+
+      const response = await s3Client.send(command);
+      const buffer = await this._streamToBuffer(response.Body);
+
+      return {
+        buffer,
+        metadata: {
+          size: response.ContentLength,
+          lastModified: response.LastModified,
+          contentType: response.ContentType,
+          etag: response.ETag
+        }
+      };
+    } catch (error) {
+      throw new Error(`S3 download failed: ${error.message}`);
+    }
   }
 
   async _deleteS3(key) {
-    // TODO: Implement S3 delete using AWS SDK
-    throw new Error('S3 implementation not yet available');
+    try {
+      // Try both buckets since we don't always know which one
+      const bucketNames = [buckets.original, buckets.processed];
+
+      for (const bucket of bucketNames) {
+        try {
+          const command = new DeleteObjectCommand({
+            Bucket: bucket,
+            Key: key
+          });
+          await s3Client.send(command);
+          return { deleted: true, bucket: bucket };
+        } catch (error) {
+          // Continue to next bucket if not found
+          if (error.name !== 'NoSuchKey') {
+            throw error;
+          }
+        }
+      }
+
+      return { deleted: false, error: 'Key not found in any bucket' };
+    } catch (error) {
+      throw new Error(`S3 delete failed: ${error.message}`);
+    }
   }
 
   async _getS3Url(key, expiresIn) {
-    // TODO: Implement S3 presigned URL generation
-    throw new Error('S3 implementation not yet available');
+    try {
+      // Determine bucket based on key or default to processed for downloads
+      const bucket = key.includes('original') ? buckets.original : buckets.processed;
+
+      const command = new GetObjectCommand({
+        Bucket: bucket,
+        Key: key
+      });
+
+      const url = await getSignedUrl(s3Client, command, { expiresIn });
+      return url;
+    } catch (error) {
+      throw new Error(`S3 presigned URL generation failed: ${error.message}`);
+    }
+  }
+
+  // Helper method to convert stream to buffer
+  async _streamToBuffer(stream) {
+    const chunks = [];
+    for await (const chunk of stream) {
+      chunks.push(chunk);
+    }
+    return Buffer.concat(chunks);
   }
 }
 
