@@ -15,10 +15,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Find user in database
-    const user = await database.get(
-      'SELECT * FROM users WHERE username = ?',
-      [username]
-    );
+    const user = await database.getUserByUsername(username);
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid username or password' });

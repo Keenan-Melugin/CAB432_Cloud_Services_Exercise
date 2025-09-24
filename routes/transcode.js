@@ -349,18 +349,19 @@ router.get('/events', (req, res) => {
 // GET /transcode/stats - System statistics (admin only)
 router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const stats = await Promise.all([
-      database.get('SELECT COUNT(*) as count FROM transcode_jobs'),
-      database.get('SELECT COUNT(*) as count FROM transcode_jobs WHERE status = \'processing\''),
-      database.get('SELECT COUNT(*) as count FROM transcode_jobs WHERE status = \'completed\''),
-      database.get('SELECT COUNT(*) as count FROM transcode_jobs WHERE status = \'failed\''),
-    ]);
+    // Get all jobs and count by status
+    const allJobs = await database.getAllTranscodeJobs();
+
+    const totalJobs = allJobs.length;
+    const activeJobs = allJobs.filter(job => job.status === 'processing').length;
+    const completedJobs = allJobs.filter(job => job.status === 'completed').length;
+    const failedJobs = allJobs.filter(job => job.status === 'failed').length;
 
     res.json({
-      totalJobs: stats[0].count,
-      activeJobs: stats[1].count,
-      completedJobs: stats[2].count,
-      failedJobs: stats[3].count,
+      totalJobs,
+      activeJobs,
+      completedJobs,
+      failedJobs,
       diskUsage: 'Check AWS console for disk usage'
     });
 
