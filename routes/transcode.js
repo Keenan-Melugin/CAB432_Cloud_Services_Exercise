@@ -85,20 +85,23 @@ router.post('/jobs', authenticateToken, async (req, res) => {
     }
 
     // Create transcoding job
-    const jobId = uuidv4();
-    
-    await database.run(
-      `INSERT INTO transcode_jobs (id, user_id, video_id, original_filename, target_resolution, target_format, quality_preset, bitrate, repeat_count)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [jobId, req.user.id, video_id, video.original_name, target_resolution, target_format, quality_preset, bitrate, repeatCountNum]
-    );
+    const job = await database.createTranscodeJob({
+      user_id: req.user.id,
+      video_id: video_id,
+      original_filename: video.original_name,
+      target_resolution: target_resolution,
+      target_format: target_format,
+      quality_preset: quality_preset,
+      bitrate: bitrate,
+      repeat_count: repeatCountNum
+    });
 
-    console.log(`Transcoding job created: ${jobId} by ${req.user.username}`);
+    console.log(`Transcoding job created: ${job.id} by ${req.user.username}`);
 
     res.json({
       message: 'Transcoding job created successfully',
       job: {
-        id: jobId,
+        id: job.id,
         video_id,
         target_resolution,
         target_format,
@@ -192,17 +195,7 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
 // GET /transcode/jobs - List user's transcoding jobs
 router.get('/jobs', authenticateToken, async (req, res) => {
   try {
-    let query = 'SELECT * FROM transcode_jobs';
-    let params = [];
-
-    if (req.user.role !== 'admin') {
-      query += ' WHERE user_id = ?';
-      params = [req.user.id];
-    }
-    
-    query += ' ORDER BY created_at DESC';
-
-    const jobs = await database.all(query, params);
+    const jobs = await database.getTranscodeJobsByUser(req.user.id, req.user.role);
 
     if (!Array.isArray(jobs)) {
       return res.json([]);

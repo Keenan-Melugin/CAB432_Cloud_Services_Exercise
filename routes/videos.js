@@ -37,7 +37,6 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
     }
 
     const file = req.file;
-    const videoId = uuidv4();
     
     // Get file size in MB
     const sizeMB = file.size / (1024 * 1024);
@@ -53,27 +52,22 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
     });
 
     // Save video metadata to database
-    await database.run(
-      `INSERT INTO videos (id, user_id, filename, original_name, file_path, size_mb, format, storage_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        videoId,
-        req.user.id,
-        uniqueFilename,
-        file.originalname,
-        storageResult.location,
-        sizeMB.toFixed(2),
-        path.extname(file.originalname).substring(1),
-        storageResult.key
-      ]
-    );
+    const video = await database.createVideo({
+      user_id: req.user.id,
+      filename: uniqueFilename,
+      original_name: file.originalname,
+      file_path: storageResult.location,
+      size_mb: sizeMB.toFixed(2),
+      format: path.extname(file.originalname).substring(1),
+      storage_key: storageResult.key
+    });
 
     console.log(`Video uploaded: ${file.originalname} (${sizeMB.toFixed(2)}MB) by ${req.user.username} -> ${storageResult.key}`);
 
     res.json({
       message: 'Video uploaded successfully',
       video: {
-        id: videoId,
+        id: video.id,
         filename: uniqueFilename,
         originalName: file.originalname,
         size: sizeMB.toFixed(2) + ' MB',
@@ -95,18 +89,7 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
 // GET /videos - List user's videos
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    let query = 'SELECT * FROM videos';
-    let params = [];
-
-    // Regular users see only their videos, admins see all
-    if (req.user.role !== 'admin') {
-      query += ' WHERE user_id = ?';
-      params = [req.user.id];
-    }
-    
-    query += ' ORDER BY uploaded_at DESC';
-
-    const videos = await database.all(query, params);
+    const videos = await database.getVideosByUser(req.user.id, req.user.role);
 
     if (!Array.isArray(videos)) {
       return res.json([]);
