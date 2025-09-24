@@ -260,6 +260,9 @@ async function loadVideos() {
             option.textContent = `${video.filename} (${Math.round(video.size_mb)}MB)`;
             select.appendChild(option);
         });
+
+        // Also display videos with download links
+        displayVideoList(videos);
     } catch (error) {
         console.error('Error loading videos:', error);
     }
@@ -483,7 +486,6 @@ async function getSystemStats() {
 // Download video with proper authentication
 async function downloadVideo(jobId, originalFilename) {
     try {
-        
         const response = await fetch(`/transcode/download/${jobId}`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${authToken}` }
@@ -495,30 +497,48 @@ async function downloadVideo(jobId, originalFilename) {
             return;
         }
 
-        // Create blob and download
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        
-        // Get filename from server response headers or construct it properly
-        let filename = response.headers.get('Content-Disposition');
-        if (filename) {
-            filename = filename.split('filename=')[1].replace(/"/g, '');
+        // Check if response is JSON (pre-signed URL) or blob (direct file)
+        const contentType = response.headers.get('Content-Type');
+
+        if (contentType && contentType.includes('application/json')) {
+            // Handle S3 pre-signed URL response
+            const data = await response.json();
+
+            // Create download link using pre-signed URL
+            const a = document.createElement('a');
+            a.href = data.downloadUrl;
+            a.download = data.filename;
+            a.target = '_blank'; // Open in new tab for S3 downloads
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            console.log(`Download initiated via pre-signed URL (expires in ${data.expiresIn}s)`);
+
         } else {
-            // Fallback: don't override server's filename, let browser use default
-            filename = null;
+            // Handle direct file download (fallback for local storage)
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+
+            // Get filename from server response headers or construct it properly
+            let filename = response.headers.get('Content-Disposition');
+            if (filename) {
+                filename = filename.split('filename=')[1].replace(/"/g, '');
+            } else {
+                filename = null;
+            }
+
+            const a = document.createElement('a');
+            a.href = url;
+            if (filename) {
+                a.download = filename;
+            }
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
         }
-        
-        const a = document.createElement('a');
-        a.href = url;
-        if (filename) {
-            a.download = filename;
-        }
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        
+
     } catch (error) {
         console.error('Download error:', error);
         alert('Download failed: ' + error.message);
@@ -528,11 +548,92 @@ async function downloadVideo(jobId, originalFilename) {
 
 
 
+// Display video list with download options
+function displayVideoList(videos) {
+    // Create a simple video list in the upload section for download access
+    const uploadSection = document.querySelector('.container:nth-child(3)');
+    let videoListDiv = document.getElementById('videoListDisplay');
+
+    if (!videoListDiv) {
+        videoListDiv = document.createElement('div');
+        videoListDiv.id = 'videoListDisplay';
+        videoListDiv.innerHTML = '<h3>Uploaded Videos</h3>';
+        uploadSection.appendChild(videoListDiv);
+    }
+
+    if (videos.length === 0) {
+        videoListDiv.innerHTML = '<h3>Uploaded Videos</h3><p>No videos uploaded yet.</p>';
+        return;
+    }
+
+    const videoItems = videos.map(video => `
+        <div style="border: 1px solid #ddd; padding: 10px; margin: 5px 0; border-radius: 4px;">
+            <strong>${video.filename}</strong> (${Math.round(video.size_mb)}MB)<br>
+            <small>Uploaded: ${new Date(video.uploaded + ' UTC').toLocaleString()}</small><br>
+            <button onclick="downloadOriginalVideo('${video.id}', '${video.filename}')">Download Original</button>
+        </div>
+    `).join('');
+
+    videoListDiv.innerHTML = `<h3>Uploaded Videos</h3>${videoItems}`;
+}
+
+// Download original video
+async function downloadOriginalVideo(videoId, filename) {
+    try {
+        const response = await fetch(`/videos/${videoId}/download`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            alert(`Download failed: ${error}`);
+            return;
+        }
+
+        // Check if response is JSON (pre-signed URL) or blob (direct file)
+        const contentType = response.headers.get('Content-Type');
+
+        if (contentType && contentType.includes('application/json')) {
+            // Handle S3 pre-signed URL response
+            const data = await response.json();
+
+            // Create download link using pre-signed URL
+            const a = document.createElement('a');
+            a.href = data.downloadUrl;
+            a.download = data.filename;
+            a.target = '_blank'; // Open in new tab for S3 downloads
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            console.log(`Original video download initiated via pre-signed URL (expires in ${data.expiresIn}s)`);
+
+        } else {
+            // Handle direct file download (fallback for local storage)
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        }
+
+    } catch (error) {
+        console.error('Original video download error:', error);
+        alert('Download failed: ' + error.message);
+    }
+}
+
 // Utility function to show status messages
 function showStatus(elementId, message, type) {
     const element = document.getElementById(elementId);
     element.innerHTML = `<div class="status ${type}">${message}</div>`;
-    
+
     // Auto-hide success messages after 3 seconds
     if (type === 'success') {
         setTimeout(() => {

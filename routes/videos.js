@@ -162,4 +162,37 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /videos/:id/download - Generate pre-signed URL for video download
+router.get('/:id/download', authenticateToken, async (req, res) => {
+  try {
+    let query = 'SELECT * FROM videos WHERE id = ?';
+    let params = [req.params.id];
+
+    // Regular users can only download their own videos
+    if (req.user.role !== 'admin') {
+      query += ' AND user_id = ?';
+      params.push(req.user.id);
+    }
+
+    const video = await database.get(query, params);
+
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Generate pre-signed URL for download (valid for 1 hour)
+    const downloadUrl = await storage.getFileUrl(video.storage_key, 3600);
+
+    res.json({
+      downloadUrl: downloadUrl,
+      filename: video.original_name,
+      expiresIn: 3600 // seconds
+    });
+
+  } catch (error) {
+    console.error('Error generating download URL:', error);
+    res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
 module.exports = router;

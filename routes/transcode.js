@@ -242,11 +242,11 @@ router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /transcode/download/:jobId - Download processed video
+// GET /transcode/download/:jobId - Generate pre-signed URL for processed video download
 router.get('/download/:jobId', authenticateToken, async (req, res) => {
   try {
     console.log('[DEBUG] Download request for job:', req.params.jobId, 'by user:', req.user.id);
-    
+
     let query = 'SELECT * FROM transcode_jobs WHERE id = ? AND status = \'completed\'';
     let params = [req.params.jobId];
 
@@ -261,6 +261,23 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Completed job not found' });
     }
 
+    // For S3 storage, use pre-signed URLs
+    if (process.env.STORAGE_PROVIDER === 's3' && job.output_storage_key) {
+      // Generate pre-signed URL for processed video download (valid for 1 hour)
+      const downloadUrl = await storage.getFileUrl(job.output_storage_key, 3600);
+
+      const baseFilename = job.original_filename.replace(/\.[^/.]+$/, '');
+      const repeatSuffix = job.repeat_count > 1 ? `_${job.repeat_count}x` : '';
+      const filename = `transcoded_${baseFilename}_${job.target_resolution}${repeatSuffix}.${job.target_format}`;
+
+      return res.json({
+        downloadUrl: downloadUrl,
+        filename: filename,
+        expiresIn: 3600 // seconds
+      });
+    }
+
+    // Fallback to local file serving for local storage
     if (!job.output_path || !fs.existsSync(job.output_path)) {
       return res.status(404).json({ error: 'Output file not found' });
     }
@@ -269,23 +286,23 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
     const baseFilename = job.original_filename.replace(/\.[^/.]+$/, '');
     const repeatSuffix = job.repeat_count > 1 ? `_${job.repeat_count}x` : '';
     const filename = `transcoded_${baseFilename}_${job.target_resolution}${repeatSuffix}.${job.target_format}`;
-    
+
     // Set correct content type for WebM files
     if (job.target_format === 'webm') {
       res.setHeader('Content-Type', 'video/webm');
     } else if (job.target_format === 'mp4') {
       res.setHeader('Content-Type', 'video/mp4');
     }
-    
+
     // Sanitize filename for HTTP header (remove/replace invalid characters)
     const sanitizedFilename = filename
       .replace(/[^\w\s\-_\.]/g, '_') // Replace invalid chars with underscore
       .replace(/\s+/g, '_')          // Replace spaces with underscore
       .replace(/_+/g, '_');          // Collapse multiple underscores
-    
+
     // Set Content-Disposition header with sanitized filename
     res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
-    
+
     res.download(job.output_path, filename);
 
   } catch (error) {
