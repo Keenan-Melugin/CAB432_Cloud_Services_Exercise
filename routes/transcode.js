@@ -156,10 +156,10 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
     }
 
     // Update job status to processing
-    await database.run(
-      'UPDATE transcode_jobs SET status = ?, started_at = CURRENT_TIMESTAMP WHERE id = ?',
-      ['processing', jobId]
-    );
+    await database.updateTranscodeJob(jobId, {
+      status: 'processing',
+      started_at: true
+    });
 
     // Start transcoding asynchronously (this is the CPU-intensive part!)
     transcodeVideoAsync(job);
@@ -642,12 +642,13 @@ async function transcodeVideoAsync(job) {
     // Update job as completed
     const processingTime = Math.round((Date.now() - startTime) / 1000);
     
-    await database.run(
-      `UPDATE transcode_jobs 
-       SET status = ?, completed_at = CURRENT_TIMESTAMP, output_path = ?, processing_time_seconds = ?, output_storage_key = ?
-       WHERE id = ?`,
-      ['completed', outputPath, processingTime, outputStorageKey, job.id]
-    );
+    await database.updateTranscodeJob(job.id, {
+      status: 'completed',
+      completed_at: true,
+      output_path: outputPath,
+      processing_time_seconds: processingTime,
+      output_storage_key: outputStorageKey
+    });
 
     console.log(`Job ${job.id} completed in ${processingTime} seconds`);
 
@@ -663,12 +664,11 @@ async function transcodeVideoAsync(job) {
     console.error(`Transcoding failed for job ${job.id}:`, error.message);
     
     // Update job as failed
-    await database.run(
-      `UPDATE transcode_jobs 
-       SET status = ?, error_message = ?, completed_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      ['failed', error.message, job.id]
-    );
+    await database.updateTranscodeJob(job.id, {
+      status: 'failed',
+      error_message: error.message,
+      completed_at: true
+    });
 
     // Broadcast job failure to connected clients
     broadcastJobUpdate(job.user_id, {
