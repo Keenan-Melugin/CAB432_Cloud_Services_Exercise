@@ -68,7 +68,8 @@ class ParameterStoreService {
         Tags: [
           { Key: 'Application', Value: 'VideoTranscoder' },
           { Key: 'Environment', Value: 'Development' },
-          { Key: 'Owner', Value: 'n10992511' }
+          { Key: 'Owner', Value: 'n10992511' },
+          { Key: 'qut-username', Value: 'n10992511@qut.edu.au' }
         ]
       });
 
