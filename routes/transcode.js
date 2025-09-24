@@ -229,17 +229,18 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
   try {
     console.log('[DEBUG] Download request for job:', req.params.jobId, 'by user:', req.user.id);
 
-    let query = 'SELECT * FROM transcode_jobs WHERE id = ? AND status = \'completed\'';
-    let params = [req.params.jobId];
-
-    if (req.user.role !== 'admin') {
-      query += ' AND user_id = ?';
-      params.push(req.user.id);
-    }
-
-    const job = await database.get(query, params);
+    const job = await database.getTranscodeJobById(req.params.jobId);
 
     if (!job) {
+      return res.status(404).json({ error: 'Completed job not found' });
+    }
+
+    if (job.status !== 'completed') {
+      return res.status(404).json({ error: 'Completed job not found' });
+    }
+
+    // Check permissions - regular users can only download their own jobs
+    if (req.user.role !== 'admin' && job.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Completed job not found' });
     }
 
