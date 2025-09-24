@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs').promises;
 
 // Import route modules and database
-const database = require('./utils/database');
+const database = require('./utils/database-abstraction');
 const authRoutes = require('./routes/auth');
 const videoRoutes = require('./routes/videos');
 const transcodeRoutes = require('./routes/transcode');

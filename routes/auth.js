@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcrypt');
-const database = require('../utils/database');
+const database = require('../utils/database-abstraction');
 const { generateToken } = require('../utils/auth');
 
 const router = express.Router();

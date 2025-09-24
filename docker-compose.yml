@@ -35,6 +35,7 @@ services:
       - DB_PASSWORD=transcoder123
       - DB_TYPE=postgres
       - STORAGE_PROVIDER=s3
+      - DB_PROVIDER=dynamodb
       - AWS_REGION=ap-southeast-2
       - S3_ORIGINAL_BUCKET=n10992511-videotranscoder-original
       - S3_PROCESSED_BUCKET=n10992511-videotranscoder-processed
