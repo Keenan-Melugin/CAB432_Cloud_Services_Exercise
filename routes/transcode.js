@@ -70,17 +70,14 @@ router.post('/jobs', authenticateToken, async (req, res) => {
     }
 
     // Verify video exists and user has access
-    let videoQuery = 'SELECT * FROM videos WHERE id = ?';
-    let videoParams = [video_id];
+    const video = await database.getVideoById(video_id);
 
-    if (req.user.role !== 'admin') {
-      videoQuery += ' AND user_id = ?';
-      videoParams.push(req.user.id);
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found or access denied' });
     }
 
-    const video = await database.get(videoQuery, videoParams);
-    
-    if (!video) {
+    // Check permissions - regular users can only transcode their own videos
+    if (req.user.role !== 'admin' && video.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Video not found or access denied' });
     }
 
