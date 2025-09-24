@@ -115,18 +115,14 @@ router.get('/', authenticateToken, async (req, res) => {
 // GET /videos/:id - Get specific video details
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    let query = 'SELECT * FROM videos WHERE id = ?';
-    let params = [req.params.id];
-
-    // Regular users can only see their own videos
-    if (req.user.role !== 'admin') {
-      query += ' AND user_id = ?';
-      params.push(req.user.id);
-    }
-
-    const video = await database.get(query, params);
+    const video = await database.getVideoById(req.params.id);
 
     if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Regular users can only see their own videos
+    if (req.user.role !== 'admin' && video.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Video not found' });
     }
 
@@ -148,18 +144,14 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // GET /videos/:id/download - Generate pre-signed URL for video download
 router.get('/:id/download', authenticateToken, async (req, res) => {
   try {
-    let query = 'SELECT * FROM videos WHERE id = ?';
-    let params = [req.params.id];
-
-    // Regular users can only download their own videos
-    if (req.user.role !== 'admin') {
-      query += ' AND user_id = ?';
-      params.push(req.user.id);
-    }
-
-    const video = await database.get(query, params);
+    const video = await database.getVideoById(req.params.id);
 
     if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Check permissions - regular users can only download their own videos
+    if (req.user.role !== 'admin' && video.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Video not found' });
     }
 
