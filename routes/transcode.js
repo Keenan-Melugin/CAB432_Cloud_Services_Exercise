@@ -264,7 +264,7 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
     // For S3 storage, use pre-signed URLs
     if (process.env.STORAGE_PROVIDER === 's3' && job.output_storage_key) {
       // Generate pre-signed URL for processed video download (valid for 1 hour)
-      const downloadUrl = await storage.getFileUrl(job.output_storage_key, 3600);
+      const downloadUrl = await storage.getFileUrl(job.output_storage_key, 3600, 'processed');
 
       const baseFilename = job.original_filename.replace(/\.[^/.]+$/, '');
       const repeatSuffix = job.repeat_count > 1 ? `_${job.repeat_count}x` : '';

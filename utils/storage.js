@@ -48,12 +48,12 @@ class StorageProvider {
     }
   }
 
-  async getFileUrl(key, expiresIn = 3600) {
+  async getFileUrl(key, expiresIn = 3600, bucketHint = null) {
     switch (this.provider) {
       case 'local':
         return this._getLocalUrl(key);
       case 's3':
-        return this._getS3Url(key, expiresIn);
+        return this._getS3Url(key, expiresIn, bucketHint);
       default:
         throw new Error(`Unsupported storage provider: ${this.provider}`);
     }
@@ -183,10 +183,18 @@ class StorageProvider {
     }
   }
 
-  async _getS3Url(key, expiresIn) {
+  async _getS3Url(key, expiresIn, bucketHint = null) {
     try {
-      // Determine bucket based on key or default to processed for downloads
-      const bucket = key.includes('original') ? buckets.original : buckets.processed;
+      // Determine bucket based on hint, key content, or default to processed
+      let bucket;
+      if (bucketHint === 'original') {
+        bucket = buckets.original;
+      } else if (bucketHint === 'processed') {
+        bucket = buckets.processed;
+      } else {
+        // Fallback: try to guess from key content
+        bucket = key.includes('original') ? buckets.original : buckets.processed;
+      }
 
       const command = new GetObjectCommand({
         Bucket: bucket,

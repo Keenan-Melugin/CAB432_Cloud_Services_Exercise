@@ -181,7 +181,8 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
     }
 
     // Generate pre-signed URL for download (valid for 1 hour)
-    const downloadUrl = await storage.getFileUrl(video.storage_key, 3600);
+    // For original videos, we need to specify it's from the original bucket
+    const downloadUrl = await storage.getFileUrl(video.storage_key, 3600, 'original');
 
     res.json({
       downloadUrl: downloadUrl,
