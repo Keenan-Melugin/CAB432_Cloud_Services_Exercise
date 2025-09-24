@@ -121,15 +121,7 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
     const { jobId } = req.params;
 
     // Get job details including storage keys
-    let jobQuery = 'SELECT tj.*, v.file_path, v.original_name, v.storage_key FROM transcode_jobs tj JOIN videos v ON tj.video_id = v.id WHERE tj.id = ?';
-    let jobParams = [jobId];
-
-    if (req.user.role !== 'admin') {
-      jobQuery += ' AND tj.user_id = ?';
-      jobParams.push(req.user.id);
-    }
-
-    const job = await database.get(jobQuery, jobParams);
+    const job = await database.getTranscodeJobWithVideo(jobId, req.user.id, req.user.role);
     
     if (!job) {
       return res.status(404).json({ error: 'Job not found or access denied' });

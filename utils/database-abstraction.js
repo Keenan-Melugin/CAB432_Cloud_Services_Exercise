@@ -205,6 +205,15 @@ class DatabaseAbstraction {
         return null;
       }
 
+      // Get associated video data
+      const video = await this.db.getVideoById(job.video_id);
+      if (video) {
+        // Add video fields to job object for compatibility
+        job.file_path = video.file_path;
+        job.original_name = video.original_name;
+        job.storage_key = video.storage_key;
+      }
+
       return job;
     } else {
       let query = 'SELECT tj.*, v.file_path, v.original_name, v.storage_key FROM transcode_jobs tj JOIN videos v ON tj.video_id = v.id WHERE tj.id = ?';
