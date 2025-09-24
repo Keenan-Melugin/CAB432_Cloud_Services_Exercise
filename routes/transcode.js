@@ -202,17 +202,14 @@ router.get('/jobs', authenticateToken, async (req, res) => {
 // GET /transcode/jobs/:jobId - Get specific job details
 router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
   try {
-    let query = 'SELECT * FROM transcode_jobs WHERE id = ?';
-    let params = [req.params.jobId];
-
-    if (req.user.role !== 'admin') {
-      query += ' AND user_id = ?';
-      params.push(req.user.id);
-    }
-
-    const job = await database.get(query, params);
+    const job = await database.getTranscodeJobById(req.params.jobId);
 
     if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Check permissions for non-admin users
+    if (req.user.role !== 'admin' && job.user_id !== req.user.id) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
