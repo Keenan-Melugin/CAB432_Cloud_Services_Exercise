@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { signUpUser, confirmSignUp, signInUser } = require('../utils/cognito');
+const { authenticateToken, requireGroups } = require('../utils/auth');
 
 const router = express.Router();
 
@@ -127,6 +128,26 @@ router.get('/callback', (req, res) => {
   } else {
     res.status(400).json({ error: 'No authorization code received' });
   }
+});
+
+// GET /auth/me - Get current user info including groups
+router.get('/me', authenticateToken, (req, res) => {
+  res.json({
+    sub: req.user.sub,
+    email: req.user.email,
+    username: req.user.username,
+    groups: req.user.groups,
+    isCognito: req.user.isCognito
+  });
+});
+
+// GET /auth/admin-test - Test admin-only endpoint
+router.get('/admin-test', authenticateToken, requireGroups('admin'), (req, res) => {
+  res.json({
+    message: 'Admin access granted!',
+    user: req.user.email,
+    groups: req.user.groups
+  });
 });
 
 module.exports = router;
