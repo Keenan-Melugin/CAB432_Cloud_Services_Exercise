@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MFA Demo - Video Transcoding Service</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+
+        .step {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+
+        .step h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        input[type="email"], input[type="password"], input[type="text"], input[type="tel"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 12px;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .info {
+            background-color: #cce7ff;
+            color: #004085;
+            padding: 12px;
+            border: 1px solid #b0d4f1;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .qr-code {
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+        }
+
+        .qr-code img {
+            max-width: 200px;
+            height: auto;
+            border: 1px solid #ddd;
+        }
+
+        .secret-code {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            margin: 10px 0;
+        }
+
+        .status-info {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+
+        .status-info h4 {
+            margin-top: 0;
+            color: #495057;
+        }
+
+        .mfa-code-input {
+            text-align: center;
+            font-size: 20px;
+            letter-spacing: 3px;
+            font-family: monospace;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .instructions {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 MFA Demo - Video Transcoding Service</h1>
+
+        <!-- Login Section -->
+        <div class="step">
+            <h3>Step 1: Login</h3>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit">Login</button>
+            </form>
+            <div id="loginResult"></div>
+        </div>
+
+        <!-- MFA Challenge Section -->
+        <div class="step hidden" id="mfaChallengeStep">
+            <h3>Step 2: MFA Challenge</h3>
+            <div class="info">
+                <strong>MFA Required:</strong> Please enter the code from your authenticator app or SMS.
+            </div>
+            <form id="mfaChallengeForm">
+                <div class="form-group">
+                    <label for="mfaCode">MFA Code (6 digits):</label>
+                    <input type="text" id="mfaCode" class="mfa-code-input" maxlength="6" pattern="[0-9]{6}" required>
+                </div>
+                <button type="submit">Verify Code</button>
+            </form>
+            <div id="mfaChallengeResult"></div>
+        </div>
+
+        <!-- MFA Management Section -->
+        <div class="step hidden" id="mfaManagementStep">
+            <h3>Step 3: MFA Management (After Login)</h3>
+
+            <div id="mfaStatus" class="status-info">
+                <h4>Current MFA Status</h4>
+                <div id="mfaStatusContent">Not checked yet</div>
+                <button onclick="checkMFAStatus()">Check MFA Status</button>
+            </div>
+
+            <div class="form-group">
+                <h4>Setup TOTP (Authenticator App)</h4>
+                <button onclick="setupTOTP()">Setup TOTP</button>
+                <div id="totpSetupResult"></div>
+
+                <div id="totpSetupInstructions" class="hidden">
+                    <div class="instructions">
+                        <h4>TOTP Setup Instructions:</h4>
+                        <ol>
+                            <li>Install an authenticator app (Google Authenticator, Authy, Microsoft Authenticator)</li>
+                            <li>Scan the QR code below or manually enter the secret code</li>
+                            <li>Enter the 6-digit code from your authenticator app</li>
+                        </ol>
+                    </div>
+
+                    <div id="qrCodeContainer" class="qr-code hidden">
+                        <div id="qrCodeDisplay"></div>
+                        <div class="secret-code">
+                            <strong>Secret Code:</strong> <span id="secretCode"></span>
+                        </div>
+                    </div>
+
+                    <form id="totpVerifyForm" class="hidden">
+                        <div class="form-group">
+                            <label for="totpCode">Enter code from authenticator app:</label>
+                            <input type="text" id="totpCode" class="mfa-code-input" maxlength="6" pattern="[0-9]{6}" required>
+                        </div>
+                        <button type="submit">Verify TOTP Setup</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <h4>Setup SMS MFA</h4>
+                <form id="smsSetupForm">
+                    <div class="form-group">
+                        <label for="phoneNumber">Phone Number (international format):</label>
+                        <input type="tel" id="phoneNumber" placeholder="+1234567890" required>
+                    </div>
+                    <button type="submit">Setup SMS MFA</button>
+                </form>
+                <div id="smsSetupResult"></div>
+            </div>
+
+            <div class="form-group">
+                <h4>Disable MFA</h4>
+                <button onclick="disableMFA()" style="background-color: #dc3545;">Disable MFA</button>
+                <div id="disableMfaResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let accessToken = null;
+        let mfaSession = null;
+        let challengeName = null;
+        let username = null;
+
+        // Utility functions
+        function showMessage(containerId, message, type = 'info') {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        function showStep(stepId) {
+            // Hide all steps
+            document.querySelectorAll('.step').forEach(step => {
+                if (step.id !== 'loginForm'.replace('Form', 'Step')) {
+                    step.classList.add('hidden');
+                }
+            });
+            // Show specific step
+            const step = document.getElementById(stepId);
+            if (step) {
+                step.classList.remove('hidden');
+            }
+        }
+
+        // Login functionality
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            username = email;
+
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    if (data.requiresMFA) {
+                        // MFA challenge required
+                        mfaSession = data.session;
+                        challengeName = data.challengeName;
+
+                        showMessage('loginResult',
+                            `Login successful! MFA challenge required: ${challengeName}`, 'info');
+                        showStep('mfaChallengeStep');
+                    } else {
+                        // No MFA required
+                        accessToken = data.accessToken;
+                        showMessage('loginResult', 'Login successful! No MFA required.', 'success');
+                        showStep('mfaManagementStep');
+                    }
+                } else {
+                    showMessage('loginResult', `Login failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage('loginResult', `Login error: ${error.message}`, 'error');
+            }
+        });
+
+        // MFA Challenge functionality
+        document.getElementById('mfaChallengeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const mfaCode = document.getElementById('mfaCode').value;
+
+            try {
+                const response = await fetch('/auth/mfa/challenge', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session: mfaSession,
+                        challengeName: challengeName,
+                        challengeResponse: mfaCode,
+                        username: username
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.accessToken) {
+                    accessToken = data.accessToken;
+                    showMessage('mfaChallengeResult', 'MFA verification successful!', 'success');
+                    showStep('mfaManagementStep');
+                } else {
+                    showMessage('mfaChallengeResult', `MFA verification failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage('mfaChallengeResult', `MFA challenge error: ${error.message}`, 'error');
+            }
+        });
+
+        // MFA Status check
+        async function checkMFAStatus() {
+            if (!accessToken) {
+                showMessage('mfaStatusContent', 'Please login first', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/auth/mfa/status', {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const statusHtml = `
+                        <strong>MFA Enabled:</strong> ${data.mfaEnabled ? 'Yes' : 'No'}<br>
+                        <strong>Preferred Method:</strong> ${data.preferredMfaMethod || 'None'}<br>
+                        <strong>Enabled Methods:</strong> ${data.enabledMfaMethods?.join(', ') || 'None'}
+                    `;
+                    document.getElementById('mfaStatusContent').innerHTML = statusHtml;
+                } else {
+                    showMessage('mfaStatusContent', `Status check failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage('mfaStatusContent', `Status check error: ${error.message}`, 'error');
+            }
+        }
+
+        // TOTP Setup
+        async function setupTOTP() {
+            if (!accessToken) {
+                showMessage('totpSetupResult', 'Please login first', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/auth/mfa/setup/totp', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('totpSetupResult', 'TOTP setup initiated successfully!', 'success');
+
+                    // Show setup instructions
+                    document.getElementById('totpSetupInstructions').classList.remove('hidden');
+
+                    // Show QR code
+                    document.getElementById('qrCodeContainer').classList.remove('hidden');
+                    document.getElementById('qrCodeDisplay').innerHTML =
+                        `<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qrCodeData)}" alt="QR Code">`;
+                    document.getElementById('secretCode').textContent = data.secretCode;
+
+                    // Show verification form
+                    document.getElementById('totpVerifyForm').classList.remove('hidden');
+                } else {
+                    showMessage('totpSetupResult', `TOTP setup failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage('totpSetupResult', `TOTP setup error: ${error.message}`, 'error');
+            }
+        }
+
+        // TOTP Verification
+        document.getElementById('totpVerifyForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const totpCode = document.getElementById('totpCode').value;
+
+            try {
+                const response = await fetch('/auth/mfa/setup/totp/verify', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ userCode: totpCode })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('totpSetupResult', 'TOTP setup completed successfully! 🎉', 'success');
+                    document.getElementById('totpSetupInstructions').classList.add('hidden');
+                    checkMFAStatus(); // Refresh status
+                } else {
+                    showMessage('totpSetupResult', `TOTP verification failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage('totpSetupResult', `TOTP verification error: ${error.message}`, 'error');
+            }
+        });
+
+        // SMS Setup
+        document.getElementById('smsSetupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const phoneNumber = document.getElementById('phoneNumber').value;
+
+            try {
+                const response = await fetch('/auth/mfa/setup/sms', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ phoneNumber })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('smsSetupResult', 'SMS MFA setup completed successfully! 📱', 'success');
+                    checkMFAStatus(); // Refresh status
+                } else {
+                    showMessage('smsSetupResult', `SMS setup failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage('smsSetupResult', `SMS setup error: ${error.message}`, 'error');
+            }
+        });
+
+        // Disable MFA
+        async function disableMFA() {
+            if (!accessToken) {
+                showMessage('disableMfaResult', 'Please login first', 'error');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to disable MFA? This will make your account less secure.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/auth/mfa/disable', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage('disableMfaResult', 'MFA disabled successfully', 'success');
+                    checkMFAStatus(); // Refresh status
+                } else {
+                    showMessage('disableMfaResult', `MFA disable failed: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showMessage('disableMfaResult', `MFA disable error: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

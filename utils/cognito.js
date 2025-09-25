@@ -7,7 +7,14 @@ const {
   CreateGroupCommand,
   AdminAddUserToGroupCommand,
   AdminRemoveUserFromGroupCommand,
-  AdminListGroupsForUserCommand
+  AdminListGroupsForUserCommand,
+  RespondToAuthChallengeCommand,
+  AdminSetUserMFAPreferenceCommand,
+  AssociateSoftwareTokenCommand,
+  VerifySoftwareTokenCommand,
+  SetUserMFAPreferenceCommand,
+  AdminUpdateUserAttributesCommand,
+  GetUserCommand
 } = require('@aws-sdk/client-cognito-identity-provider');
 const crypto = require('crypto');
 
@@ -167,6 +174,168 @@ async function getUserGroups(username) {
   }
 }
 
+// MFA Functions
+
+// Handle MFA challenge response (for SMS, TOTP, and EMAIL)
+async function respondToMFAChallenge(session, challengeName, challengeResponse, username) {
+  const secretHash = calculateSecretHash(username, cognitoConfig.clientId, cognitoConfig.clientSecret);
+
+  // Determine the challenge response key based on challenge type
+  let challengeResponseKey;
+  if (challengeName === 'SMS_MFA') {
+    challengeResponseKey = 'SMS_MFA_CODE';
+  } else if (challengeName === 'SOFTWARE_TOKEN_MFA') {
+    challengeResponseKey = 'SOFTWARE_TOKEN_MFA_CODE';
+  } else if (challengeName === 'EMAIL_MFA') {
+    challengeResponseKey = 'EMAIL_MFA_CODE';
+  } else {
+    // Fallback for other challenge types
+    challengeResponseKey = `${challengeName}_CODE`;
+  }
+
+  const params = {
+    ClientId: cognitoConfig.clientId,
+    ChallengeName: challengeName, // 'SMS_MFA', 'SOFTWARE_TOKEN_MFA', or 'EMAIL_MFA'
+    Session: session,
+    SecretHash: secretHash,
+    ChallengeResponses: {
+      USERNAME: username,
+      [challengeResponseKey]: challengeResponse
+    }
+  };
+
+  try {
+    const command = new RespondToAuthChallengeCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Associate software token (TOTP) with user
+async function associateSoftwareToken(accessToken) {
+  const params = {
+    AccessToken: accessToken
+  };
+
+  try {
+    const command = new AssociateSoftwareTokenCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Verify software token setup
+async function verifySoftwareToken(accessToken, userCode) {
+  const params = {
+    AccessToken: accessToken,
+    UserCode: userCode,
+    FriendlyDeviceName: 'Mobile Authenticator'
+  };
+
+  try {
+    const command = new VerifySoftwareTokenCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Set user MFA preference
+async function setMFAPreference(accessToken, smsPreference = 'DISABLED', softwareTokenPreference = 'ENABLED', emailPreference = 'DISABLED') {
+  const params = {
+    AccessToken: accessToken,
+    SMSMfaSettings: {
+      Enabled: smsPreference === 'ENABLED' || smsPreference === 'PREFERRED',
+      PreferredMfa: smsPreference === 'PREFERRED'
+    },
+    SoftwareTokenMfaSettings: {
+      Enabled: softwareTokenPreference === 'ENABLED' || softwareTokenPreference === 'PREFERRED',
+      PreferredMfa: softwareTokenPreference === 'PREFERRED'
+    }
+  };
+
+  // Note: Email MFA is handled through Cognito's challenge system automatically
+  // when enabled in the User Pool settings. No separate preference setting needed.
+
+  try {
+    const command = new SetUserMFAPreferenceCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Admin set user MFA preference (requires admin permissions)
+async function adminSetMFAPreference(username, smsPreference = 'DISABLED', softwareTokenPreference = 'ENABLED') {
+  const params = {
+    Username: username,
+    UserPoolId: cognitoConfig.userPoolId,
+    SMSMfaSettings: {
+      Enabled: smsPreference === 'ENABLED',
+      PreferredMfa: smsPreference === 'PREFERRED'
+    },
+    SoftwareTokenMfaSettings: {
+      Enabled: softwareTokenPreference === 'ENABLED',
+      PreferredMfa: softwareTokenPreference === 'PREFERRED'
+    }
+  };
+
+  try {
+    const command = new AdminSetUserMFAPreferenceCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Update user phone number for SMS MFA
+async function updateUserPhoneNumber(username, phoneNumber) {
+  const params = {
+    UserPoolId: cognitoConfig.userPoolId,
+    Username: username,
+    UserAttributes: [
+      {
+        Name: 'phone_number',
+        Value: phoneNumber
+      },
+      {
+        Name: 'phone_number_verified',
+        Value: 'true'
+      }
+    ]
+  };
+
+  try {
+    const command = new AdminUpdateUserAttributesCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Get user details (requires access token)
+async function getUserDetails(accessToken) {
+  const params = {
+    AccessToken: accessToken
+  };
+
+  try {
+    const command = new GetUserCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
 module.exports = {
   cognitoClient,
   cognitoConfig,
@@ -176,5 +345,13 @@ module.exports = {
   createUserGroup,
   addUserToGroup,
   removeUserFromGroup,
-  getUserGroups
+  getUserGroups,
+  // MFA functions
+  respondToMFAChallenge,
+  associateSoftwareToken,
+  verifySoftwareToken,
+  setMFAPreference,
+  adminSetMFAPreference,
+  updateUserPhoneNumber,
+  getUserDetails
 };
