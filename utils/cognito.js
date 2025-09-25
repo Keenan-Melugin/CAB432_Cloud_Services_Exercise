@@ -3,9 +3,9 @@ const crypto = require('crypto');
 
 const cognitoConfig = {
   region: 'ap-southeast-2',
-  userPoolId: 'ap-southeast-2_WgItmnqik',
-  clientId: '6eu5j1rkaejas7s4cd1qkrgepb',
-  clientSecret: 'YOUR_CLIENT_SECRET_HERE', // We need to get this from AWS Console
+  userPoolId: 'ap-southeast-2_NxyJMYl5Z',
+  clientId: '7n4paksk83ssgneufvkvo0m3qa',
+  clientSecret: 'j851eik75aqeho124e4ogkl390kuu0i3gper5bgf5ce54tp4ugc',
 };
 
 // Calculate SECRET_HASH as required by Cognito when client secret is used
