@@ -48,7 +48,9 @@ function authenticateToken(req, res, next) {
       req.user = {
         sub: decoded.sub,
         email: decoded.email || decoded.username,
+        username: decoded['cognito:username'],
         tokenUse: decoded.token_use,
+        groups: decoded['cognito:groups'] || [],
         isCognito: true
       };
       return next();
@@ -71,21 +73,38 @@ function authenticateToken(req, res, next) {
   });
 }
 
-// Middleware to check admin role (updated for Cognito)
+// Group-based authorization middleware
+function requireGroups(...requiredGroups) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    if (req.user.isCognito) {
+      const userGroups = req.user.groups || [];
+      const hasRequiredGroup = requiredGroups.some(group => userGroups.includes(group));
+
+      if (!hasRequiredGroup) {
+        return res.status(403).json({
+          error: 'Insufficient permissions',
+          required: requiredGroups,
+          userGroups: userGroups
+        });
+      }
+    } else {
+      // Legacy role checking for backward compatibility
+      if (req.user.role !== 'admin' && requiredGroups.includes('admin')) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+    }
+
+    next();
+  };
+}
+
+// Middleware to check admin role (updated for Cognito Groups)
 function requireAdmin(req, res, next) {
-  if (req.user.isCognito) {
-    // For Cognito users, check if email contains 'admin' or implement proper group checking
-    // This is a temporary solution - Phase 3 will implement proper user groups
-    if (!req.user.email || !req.user.email.includes('admin')) {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-  } else {
-    // Legacy role checking
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin access required' });
-    }
-  }
-  next();
+  return requireGroups('admin')(req, res, next);
 }
 
 // Generate JWT token
@@ -102,6 +121,7 @@ function generateToken(user) {
 module.exports = {
   authenticateToken,
   requireAdmin,
+  requireGroups,
   generateToken,
   JWT_SECRET
 };

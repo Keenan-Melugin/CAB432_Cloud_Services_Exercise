@@ -1,4 +1,14 @@
-const { CognitoIdentityProviderClient, SignUpCommand, ConfirmSignUpCommand, InitiateAuthCommand, AdminGetUserCommand } = require('@aws-sdk/client-cognito-identity-provider');
+const {
+  CognitoIdentityProviderClient,
+  SignUpCommand,
+  ConfirmSignUpCommand,
+  InitiateAuthCommand,
+  AdminGetUserCommand,
+  CreateGroupCommand,
+  AdminAddUserToGroupCommand,
+  AdminRemoveUserFromGroupCommand,
+  AdminListGroupsForUserCommand
+} = require('@aws-sdk/client-cognito-identity-provider');
 const crypto = require('crypto');
 
 const cognitoConfig = {
@@ -89,10 +99,82 @@ async function signInUser(email, password) {
   }
 }
 
+// Create a group
+async function createUserGroup(groupName, description, precedence) {
+  const params = {
+    GroupName: groupName,
+    UserPoolId: cognitoConfig.userPoolId,
+    Description: description,
+    Precedence: precedence
+  };
+
+  try {
+    const command = new CreateGroupCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Add user to group
+async function addUserToGroup(username, groupName) {
+  const params = {
+    Username: username,
+    GroupName: groupName,
+    UserPoolId: cognitoConfig.userPoolId
+  };
+
+  try {
+    const command = new AdminAddUserToGroupCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Remove user from group
+async function removeUserFromGroup(username, groupName) {
+  const params = {
+    Username: username,
+    GroupName: groupName,
+    UserPoolId: cognitoConfig.userPoolId
+  };
+
+  try {
+    const command = new AdminRemoveUserFromGroupCommand(params);
+    const result = await cognitoClient.send(command);
+    return result;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Get user's groups
+async function getUserGroups(username) {
+  const params = {
+    Username: username,
+    UserPoolId: cognitoConfig.userPoolId
+  };
+
+  try {
+    const command = new AdminListGroupsForUserCommand(params);
+    const result = await cognitoClient.send(command);
+    return result.Groups || [];
+  } catch (error) {
+    throw error;
+  }
+}
+
 module.exports = {
   cognitoClient,
   cognitoConfig,
   signUpUser,
   confirmSignUp,
-  signInUser
+  signInUser,
+  createUserGroup,
+  addUserToGroup,
+  removeUserFromGroup,
+  getUserGroups
 };
