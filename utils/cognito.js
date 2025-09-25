@@ -1,10 +1,20 @@
 const { CognitoIdentityProviderClient, SignUpCommand, ConfirmSignUpCommand, InitiateAuthCommand, AdminGetUserCommand } = require('@aws-sdk/client-cognito-identity-provider');
+const crypto = require('crypto');
 
 const cognitoConfig = {
   region: 'ap-southeast-2',
   userPoolId: 'ap-southeast-2_WgItmnqik',
   clientId: '6eu5j1rkaejas7s4cd1qkrgepb',
+  clientSecret: 'YOUR_CLIENT_SECRET_HERE', // We need to get this from AWS Console
 };
+
+// Calculate SECRET_HASH as required by Cognito when client secret is used
+function calculateSecretHash(username, clientId, clientSecret) {
+  return crypto
+    .createHmac('sha256', clientSecret)
+    .update(username + clientId)
+    .digest('base64');
+}
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: cognitoConfig.region
@@ -12,10 +22,13 @@ const cognitoClient = new CognitoIdentityProviderClient({
 
 // Sign up new user
 async function signUpUser(email, password) {
+  const secretHash = calculateSecretHash(email, cognitoConfig.clientId, cognitoConfig.clientSecret);
+
   const params = {
     ClientId: cognitoConfig.clientId,
     Username: email,
     Password: password,
+    SecretHash: secretHash,
     UserAttributes: [
       {
         Name: 'email',
@@ -35,10 +48,13 @@ async function signUpUser(email, password) {
 
 // Confirm sign up with verification code
 async function confirmSignUp(email, confirmationCode) {
+  const secretHash = calculateSecretHash(email, cognitoConfig.clientId, cognitoConfig.clientSecret);
+
   const params = {
     ClientId: cognitoConfig.clientId,
     Username: email,
-    ConfirmationCode: confirmationCode
+    ConfirmationCode: confirmationCode,
+    SecretHash: secretHash
   };
 
   try {
@@ -52,12 +68,15 @@ async function confirmSignUp(email, confirmationCode) {
 
 // Sign in user
 async function signInUser(email, password) {
+  const secretHash = calculateSecretHash(email, cognitoConfig.clientId, cognitoConfig.clientSecret);
+
   const params = {
     ClientId: cognitoConfig.clientId,
     AuthFlow: 'USER_PASSWORD_AUTH',
     AuthParameters: {
       USERNAME: email,
-      PASSWORD: password
+      PASSWORD: password,
+      SECRET_HASH: secretHash
     }
   };
 
