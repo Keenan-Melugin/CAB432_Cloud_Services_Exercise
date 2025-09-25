@@ -13,6 +13,16 @@ const cognitoJwksClient = jwksClient({
 
 function getKey(header, callback) {
   cognitoJwksClient.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      console.error('JWKS key retrieval error:', err);
+      return callback(err);
+    }
+
+    if (!key) {
+      console.error('No key found for kid:', header.kid);
+      return callback(new Error('Unable to find a signing key that matches'));
+    }
+
     const signingKey = key.publicKey || key.rsaPublicKey;
     callback(null, signingKey);
   });
@@ -34,6 +44,7 @@ function authenticateToken(req, res, next) {
   }, (err, decoded) => {
     if (!err) {
       // Cognito token verified successfully
+      console.log('Cognito token verified for user:', decoded.email || decoded.username);
       req.user = {
         sub: decoded.sub,
         email: decoded.email || decoded.username,
@@ -43,12 +54,16 @@ function authenticateToken(req, res, next) {
       return next();
     }
 
+    console.error('Cognito JWT verification failed:', err.message);
+
     // Fallback to legacy JWT verification for backward compatibility
     jwt.verify(token, JWT_SECRET, (legacyErr, user) => {
       if (legacyErr) {
+        console.error('Legacy JWT verification also failed:', legacyErr.message);
         return res.status(403).json({ error: 'Invalid or expired token' });
       }
 
+      console.log('Legacy token verified for user:', user.username);
       req.user = user;
       req.user.isCognito = false;
       next();
