@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         showMainApp();
         loadVideos();
+        loadOriginalVideos();
         refreshJobs();
     }
 });
@@ -459,7 +460,8 @@ async function uploadVideo() {
         }
 
         showStatus('uploadStatus', 'Video uploaded successfully!', 'success');
-        loadVideos(); // Refresh video list
+        loadVideos(); // Refresh video list for transcoding dropdown
+        loadOriginalVideos(); // Refresh original videos list
         fileInput.value = ''; // Clear file input
 
     } catch (error) {
@@ -891,6 +893,143 @@ async function getSystemStats() {
             `<div class="status error">Error loading stats: ${error.message}</div>`;
     }
 }
+
+// Original Videos functionality
+async function loadOriginalVideos() {
+    try {
+        console.log('🎬 Loading original videos...');
+        const response = await fetch('/videos', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+            const videos = await response.json();
+            displayOriginalVideos(videos);
+        } else {
+            document.getElementById('originalVideosList').innerHTML =
+                '<p style="color: #dc3545;">Failed to load videos. Please try again.</p>';
+        }
+    } catch (error) {
+        console.error('Error loading original videos:', error);
+        document.getElementById('originalVideosList').innerHTML =
+            '<p style="color: #dc3545;">Error loading videos: ' + error.message + '</p>';
+    }
+}
+
+function displayOriginalVideos(videos) {
+    const container = document.getElementById('originalVideosList');
+
+    if (videos.length === 0) {
+        container.innerHTML = '<p>No videos uploaded yet. Upload a video above to get started.</p>';
+        return;
+    }
+
+    // Sort by upload date (newest first)
+    const sortedVideos = videos.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
+
+    container.innerHTML = sortedVideos.map(video => `
+        <div class="video-item">
+            <div class="video-info">
+                <strong>${video.filename}</strong><br>
+                <small>Size: ${video.size_mb}MB • Format: ${video.format.toUpperCase()} • Uploaded: ${new Date(video.uploaded).toLocaleDateString()}</small>
+            </div>
+            <div class="video-actions">
+                <button onclick="streamVideo('${video.id}', '${video.filename}')" style="background-color: #28a745;">
+                    🎬 Watch
+                </button>
+                <button onclick="downloadOriginalVideo('${video.id}', '${video.filename}')" style="background-color: #007bff;">
+                    📥 Download
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function streamVideo(videoId, filename) {
+    try {
+        console.log('🎥 Starting video stream for:', filename);
+
+        // Get streaming URL
+        const response = await fetch(`/videos/${videoId}/stream`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+
+            // Set up video player
+            const modal = document.getElementById('videoModal');
+            const player = document.getElementById('videoPlayer');
+            const title = document.getElementById('videoTitle');
+            const info = document.getElementById('videoInfo');
+
+            title.textContent = filename;
+            info.textContent = `Stream expires in ${Math.floor(data.expiresIn / 60)} minutes`;
+
+            player.src = data.streamUrl;
+            player.load();
+
+            modal.style.display = 'flex';
+
+            console.log('✅ Video stream ready');
+        } else {
+            const error = await response.text();
+            alert('Failed to load video: ' + error);
+        }
+    } catch (error) {
+        console.error('Error streaming video:', error);
+        alert('Error loading video: ' + error.message);
+    }
+}
+
+async function downloadOriginalVideo(videoId, filename) {
+    try {
+        console.log('📥 Starting download for:', filename);
+
+        const response = await fetch(`/videos/${videoId}/download`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+
+            // Create download link
+            const a = document.createElement('a');
+            a.href = data.downloadUrl;
+            a.download = data.filename;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            console.log('✅ Download started');
+        } else {
+            const error = await response.text();
+            alert('Download failed: ' + error);
+        }
+    } catch (error) {
+        console.error('Error downloading video:', error);
+        alert('Download error: ' + error.message);
+    }
+}
+
+function closeVideoModal() {
+    const modal = document.getElementById('videoModal');
+    const player = document.getElementById('videoPlayer');
+
+    player.pause();
+    player.src = '';
+    modal.style.display = 'none';
+
+    console.log('🔒 Video player closed');
+}
+
+// Close modal when clicking outside the content
+document.getElementById('videoModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeVideoModal();
+    }
+});
 
 // Download video with proper authentication
 async function downloadVideo(jobId, originalFilename) {

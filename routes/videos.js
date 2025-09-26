@@ -271,6 +271,37 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /videos/:id/stream - Generate pre-signed URL for video streaming/preview
+router.get('/:id/stream', authenticateToken, async (req, res) => {
+  try {
+    const video = await database.getVideoById(req.params.id);
+
+    if (!video) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Check permissions - regular users can only stream their own videos
+    const { userId, userRole } = getUserIdAndRole(req.user);
+    if (userRole !== 'admin' && video.user_id !== userId) {
+      return res.status(404).json({ error: 'Video not found' });
+    }
+
+    // Generate pre-signed URL for streaming (valid for 2 hours)
+    const streamUrl = await storage.getFileUrl(video.storage_key, 7200, 'original');
+
+    res.json({
+      streamUrl: streamUrl,
+      filename: video.original_name,
+      contentType: video.format === 'mp4' ? 'video/mp4' : `video/${video.format}`,
+      expiresIn: 7200 // seconds
+    });
+
+  } catch (error) {
+    console.error('Error generating stream URL:', error);
+    res.status(500).json({ error: 'Failed to generate stream URL' });
+  }
+});
+
 // GET /videos/:id/download - Generate pre-signed URL for video download
 router.get('/:id/download', authenticateToken, async (req, res) => {
   try {
