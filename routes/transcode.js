@@ -311,16 +311,24 @@ router.get('/progress', (req, res) => {
   const { authenticateToken, getUserIdAndRole } = require('../utils/auth');
 
   // Authenticate the token
-  authenticateToken(req, res, () => {
+  authenticateToken(req, res, (error) => {
+    if (error) {
+      console.log(`❌ SSE auth failed: ${error.message}`);
+      res.status(401).send(`Authentication failed: ${error.message}`);
+      return;
+    }
+
     const { userId } = getUserIdAndRole(req.user);
     console.log(`📡 SSE connection from: ${userId}`);
 
-    // Set SSE headers
+    // Set SSE headers with better CORS support
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*'
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Cache-Control',
+      'Access-Control-Allow-Methods': 'GET'
     });
 
     // Store connection
@@ -328,12 +336,26 @@ router.get('/progress', (req, res) => {
     console.log(`✅ SSE connected: ${userId}`);
 
     // Send welcome message
-    res.write(`data: {"status":"connected"}\n\n`);
+    try {
+      res.write(`data: {"status":"connected"}\n\n`);
+      console.log(`📤 Welcome message sent to ${userId}`);
+    } catch (err) {
+      console.log(`❌ Failed to send welcome message: ${err.message}`);
+    }
 
-    // Cleanup on disconnect
+    // Handle connection events
     req.on('close', () => {
       progressConnections.delete(userId);
-      console.log(`❌ SSE disconnected: ${userId}`);
+      console.log(`❌ SSE disconnected: ${userId} (client closed)`);
+    });
+
+    res.on('error', (err) => {
+      progressConnections.delete(userId);
+      console.log(`❌ SSE error for ${userId}: ${err.message}`);
+    });
+
+    res.on('finish', () => {
+      console.log(`🏁 SSE finished for ${userId}`);
     });
   });
 });
