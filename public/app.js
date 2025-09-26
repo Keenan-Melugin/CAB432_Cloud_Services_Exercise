@@ -94,8 +94,19 @@ async function signup() {
         return;
     }
 
+    // Validate password against Cognito requirements
     if (password.length < 8) {
         showStatus('signupStatus', 'Password must be at least 8 characters', 'error');
+        return;
+    }
+
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumbers = /\d/.test(password);
+    const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{}|;:,.<>?]/.test(password);
+
+    if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
+        showStatus('signupStatus', 'Password must contain: uppercase letter, lowercase letter, number, and special character (!@#$%^&*)', 'error');
         return;
     }
 
