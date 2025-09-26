@@ -271,33 +271,40 @@ function showMainApp() {
     startJobUpdates();
 }
 
-// Real-time job updates with fallback to polling
+// Real-time job updates with reliable polling
 function startJobUpdates() {
-    // Try SSE first, but fall back to polling if it fails
+    console.log('🚀 Starting job update system');
     startProgressTracking();
 
-    // Also start polling as backup (every 3 seconds)
+    // Start slower background refresh for job list (every 10 seconds)
     if (pollingInterval) {
         clearInterval(pollingInterval);
     }
     pollingInterval = setInterval(() => {
-        refreshJobs(); // Refresh job list every 3 seconds
-    }, 3000);
+        // Only refresh if no active jobs (to avoid conflicts)
+        if (activeJobs.size === 0) {
+            console.log('📋 Background job list refresh (no active jobs)');
+            refreshJobs();
+        }
+    }, 10000);
 }
 
 // Attempt SSE connection
 // Track active jobs for progress updates
 const activeJobs = new Set();
 
+// Use separate intervals to avoid conflicts
+let progressInterval = null;
+
 function startProgressTracking() {
     console.log('🔄 Starting reliable polling-based progress tracking');
 
     // Poll for progress every 2 seconds
-    if (pollingInterval) {
-        clearInterval(pollingInterval);
+    if (progressInterval) {
+        clearInterval(progressInterval);
     }
 
-    pollingInterval = setInterval(async () => {
+    progressInterval = setInterval(async () => {
         if (activeJobs.size > 0) {
             console.log(`📊 Polling progress for ${activeJobs.size} active jobs`);
 
@@ -346,6 +353,12 @@ function stopJobUpdates() {
         clearInterval(pollingInterval);
         pollingInterval = null;
     }
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+    }
+    activeJobs.clear();
+    console.log('🛑 All job updates stopped');
 }
 
 function updateJobProgress(jobId, jobData) {
