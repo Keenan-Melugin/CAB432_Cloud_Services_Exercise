@@ -25,25 +25,32 @@ function loginWithGoogle() {
 }
 
 async function login() {
-    const username = document.getElementById('username').value;
+    const email = document.getElementById('username').value; // Input field is called username but contains email
     const password = document.getElementById('password').value;
-    
-    if (!username || !password) {
-        showStatus('loginStatus', 'Please enter username and password', 'error');
+
+    if (!email || !password) {
+        showStatus('loginStatus', 'Please enter email and password', 'error');
         return;
     }
-    
+
     try {
         const response = await fetch('/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ email, password })
         });
         
         const data = await response.json();
         
         if (response.ok) {
-            authToken = data.token;
+            // Handle both regular login and MFA challenge responses
+            if (data.requiresMFA) {
+                // MFA challenge required - handle this separately
+                handleMFAChallenge(data);
+                return;
+            }
+
+            authToken = data.accessToken; // Use accessToken instead of token
             currentUser = data.user;
             localStorage.setItem('authToken', authToken);
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
@@ -57,6 +64,13 @@ async function login() {
     } catch (error) {
         showStatus('loginStatus', 'Login error: ' + error.message, 'error');
     }
+}
+
+// Handle MFA challenge (placeholder for future MFA UI implementation)
+function handleMFAChallenge(data) {
+    console.log('MFA Challenge required:', data);
+    showStatus('loginStatus', 'MFA challenge required. Please use the /auth/mfa endpoints to complete authentication.', 'info');
+    // TODO: Implement MFA UI flow when adding MFA setup UI
 }
 
 function logout() {
