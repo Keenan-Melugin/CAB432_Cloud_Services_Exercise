@@ -293,12 +293,12 @@ function startJobUpdates() {
                 
                 if (data.type === 'jobUpdate') {
                     // Handle real-time progress updates
-                    if (data.data.status === 'processing' && data.data.progress) {
+                    if (data.data.status === 'processing') {
                         // Update progress bar in real-time without full refresh
                         updateJobProgress(data.data.id, data.data);
-                    } else {
-                        // For status changes (completed/failed), refresh the jobs list
-                        refreshJobs();
+                    } else if (data.data.status === 'completed' || data.data.status === 'failed') {
+                        // For status changes (completed/failed), refresh the jobs list to show download button
+                        setTimeout(() => refreshJobs(), 500); // Small delay to ensure backend is ready
                     }
                     
                     // Show notifications for job completion/failure
@@ -700,12 +700,17 @@ function displayJobs(jobs) {
                            job.status === 'processing' ? '#ffc107' :
                            job.status === 'failed' ? '#dc3545' : '#6c757d';
         
-        const progressHtml = job.status === 'processing' ? `
+        const progressHtml = (job.status === 'processing' || job.status === 'pending') ? `
             <div class="progress-container">
-                <div class="progress-bar" style="width: 0%"></div>
-                <div class="progress-text">Initializing...</div>
+                <div class="progress-bar" style="width: ${job.progress || 0}%"></div>
+                <div class="progress-text">${job.progress ? job.progress + '%' : 'Initializing...'}</div>
             </div>
-            <div class="progress-details" id="progress-details-${job.id}">Starting transcoding process...</div>
+            <div class="progress-details" id="progress-details-${job.id}">
+                ${job.processing_details ?
+                    `${job.processing_details.current_time || ''} | ${job.processing_details.bitrate || ''} | ${job.processing_details.speed || ''}` :
+                    'Starting transcoding process...'
+                }
+            </div>
         ` : '';
 
         const repeatInfo = job.repeat_count > 1 ? `<br><strong>Repeat Count:</strong> ${job.repeat_count}x (concatenated into single video)` : '';
@@ -729,9 +734,8 @@ function displayJobs(jobs) {
             ${job.processing_time_seconds ? `<strong>Processing Time:</strong> ${job.processing_time_seconds}s<br>` : ''}
             ${progressHtml}
             ${job.status === 'pending' ? `<button onclick="startTranscoding('${job.id}')">Start Processing</button>` : ''}
-            ${job.status === 'completed' && job.output_path ? 
-                `<br><button onclick="downloadVideo('${job.id}', '${job.original_filename}')">Download Result</button>
-` : ''
+            ${job.status === 'completed' ?
+                `<br><button onclick="downloadVideo('${job.id}', '${job.original_filename}')">Download Result</button>` : ''
             }
         `;
         
@@ -740,6 +744,36 @@ function displayJobs(jobs) {
         
         container.appendChild(jobDiv);
     });
+}
+
+// Download transcoded video
+async function downloadVideo(jobId, originalFilename) {
+    try {
+        const response = await fetch(`/transcode/download/${jobId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+
+            // Create a temporary download link
+            const downloadLink = document.createElement('a');
+            downloadLink.href = data.downloadUrl;
+            downloadLink.download = data.filename || `transcoded_${originalFilename}`;
+            downloadLink.style.display = 'none';
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            showStatus('jobStatus', 'Download started!', 'success');
+        } else {
+            const errorData = await response.json();
+            showStatus('jobStatus', errorData.error || 'Download failed', 'error');
+        }
+    } catch (error) {
+        console.error('Download error:', error);
+        showStatus('jobStatus', 'Download failed: ' + error.message, 'error');
+    }
 }
 
 // Update progress bar for a specific job
