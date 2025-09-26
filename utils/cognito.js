@@ -19,14 +19,14 @@ const {
 const crypto = require('crypto');
 
 const cognitoConfig = {
-  region: 'ap-southeast-2',
-  userPoolId: 'ap-southeast-2_NxyJMYl5Z',
-  clientId: '7n4paksk83ssgneufvkvo0m3qa',
-  clientSecret: 'j851eik75aqeho124e4ogkl390kuu0i3gper5bgf5ce54tp4ugc',
+  region: process.env.COGNITO_REGION || 'ap-southeast-2',
+  userPoolId: process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z',
+  clientId: process.env.COGNITO_CLIENT_ID || '7n4paksk83ssgneufvkvo0m3qa',
+  clientSecret: process.env.COGNITO_CLIENT_SECRET || 'j851eik75aqeho124e4ogkl390kuu0i3gper5bgf5ce54tp4ugc',
   // Federated Identity Configuration
-  hostedUIUrl: 'https://ap-southeast-2nxyjmyl5z.auth.ap-southeast-2.amazoncognito.com',
+  hostedUIUrl: process.env.COGNITO_HOSTED_UI_URL || 'https://ap-southeast-2nxyjmyl5z.auth.ap-southeast-2.amazoncognito.com',
   redirectUri: process.env.NODE_ENV === 'production'
-    ? 'https://mytranscoder.cab432.com/auth/callback'
+    ? process.env.COGNITO_REDIRECT_URI || 'https://mytranscoder.cab432.com/auth/callback'
     : 'http://localhost:3000/auth/callback'
 };
 

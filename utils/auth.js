@@ -4,7 +4,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-producti
 
 // Cognito JWKS client for token verification
 const cognitoJwksClient = jwksClient({
-  jwksUri: 'https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_NxyJMYl5Z/.well-known/jwks.json',
+  jwksUri: `https://cognito-idp.${process.env.COGNITO_REGION || 'ap-southeast-2'}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z'}/.well-known/jwks.json`,
   cache: true,
   cacheMaxAge: 86400000, // 24 hours
   rateLimit: true,
@@ -46,7 +46,7 @@ function authenticateToken(req, res, next) {
 
   // Try to verify as Cognito token first
   jwt.verify(token, getKey, {
-    issuer: 'https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_NxyJMYl5Z',
+    issuer: `https://cognito-idp.${process.env.COGNITO_REGION || 'ap-southeast-2'}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z'}`,
     algorithms: ['RS256']
   }, (err, decoded) => {
     if (!err) {
