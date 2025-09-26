@@ -38,11 +38,11 @@ function showSignup() {
 }
 
 async function login() {
-    const email = document.getElementById('username').value; // Input field is called username but contains email
+    const usernameOrEmail = document.getElementById('username').value; // Can be username or email
     const password = document.getElementById('password').value;
 
-    if (!email || !password) {
-        showStatus('loginStatus', 'Please enter email and password', 'error');
+    if (!usernameOrEmail || !password) {
+        showStatus('loginStatus', 'Please enter username/email and password', 'error');
         return;
     }
 
@@ -50,7 +50,7 @@ async function login() {
         const response = await fetch('/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ email: usernameOrEmail, password })
         });
         
         const data = await response.json();
@@ -81,12 +81,13 @@ async function login() {
 
 // User registration function
 async function signup() {
+    const username = document.getElementById('signupUsername').value;
     const email = document.getElementById('signupEmail').value;
     const password = document.getElementById('signupPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
 
     // Basic validation
-    if (!email || !password || !confirmPassword) {
+    if (!username || !email || !password || !confirmPassword) {
         showStatus('signupStatus', 'Please fill in all fields', 'error');
         return;
     }
@@ -116,7 +117,7 @@ async function signup() {
         const response = await fetch('/auth/signup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            body: JSON.stringify({ username, email, password })
         });
 
         const data = await response.json();
@@ -124,13 +125,14 @@ async function signup() {
         if (response.ok) {
             showStatus('signupStatus', 'Account created successfully! Please check your email for a verification code.', 'success');
             // Clear form
+            document.getElementById('signupUsername').value = '';
             document.getElementById('signupEmail').value = '';
             document.getElementById('signupPassword').value = '';
             document.getElementById('confirmPassword').value = '';
 
-            // Show email confirmation section after 2 seconds
+            // Show email confirmation section after 2 seconds (but store username for confirmation)
             setTimeout(() => {
-                showEmailConfirmation(email);
+                showEmailConfirmation(username, email);
             }, 2000);
         } else {
             showStatus('signupStatus', data.error || 'Registration failed', 'error');
@@ -141,8 +143,10 @@ async function signup() {
 }
 
 // Show email confirmation modal
-function showEmailConfirmation(email) {
+function showEmailConfirmation(username, email) {
     document.getElementById('confirmationEmail').textContent = email;
+    // Store username for confirmation API call
+    document.getElementById('verificationModal').setAttribute('data-username', username);
     document.getElementById('verificationModal').style.display = 'block';
     document.getElementById('confirmationCode').value = '';
     document.getElementById('confirmationCode').focus();
@@ -168,10 +172,11 @@ function handleVerificationKeypress(event) {
 
 // Handle email confirmation
 async function confirmEmail() {
+    const username = document.getElementById('verificationModal').getAttribute('data-username');
     const email = document.getElementById('confirmationEmail').textContent;
     const confirmationCode = document.getElementById('confirmationCode').value;
 
-    console.log('Confirming email:', email, 'with code:', confirmationCode);
+    console.log('Confirming email for username:', username, 'email:', email, 'with code:', confirmationCode);
 
     if (!confirmationCode || confirmationCode.length !== 6) {
         showStatus('confirmationStatus', 'Please enter the 6-digit verification code', 'error');
@@ -195,7 +200,7 @@ async function confirmEmail() {
         const response = await fetch('/auth/confirm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, confirmationCode })
+            body: JSON.stringify({ email: username, confirmationCode })
         });
 
         console.log('Response status:', response.status);
@@ -234,11 +239,127 @@ function resendConfirmationCode() {
     // TODO: Implement resend confirmation code endpoint
 }
 
-// Handle MFA challenge (placeholder for future MFA UI implementation)
+// Global variable to store MFA challenge data
+let currentMFAChallenge = null;
+
+// Handle MFA challenge during login
 function handleMFAChallenge(data) {
     console.log('MFA Challenge required:', data);
-    showStatus('loginStatus', 'MFA challenge required. Please use the /auth/mfa endpoints to complete authentication.', 'info');
-    // TODO: Implement MFA UI flow when adding MFA setup UI
+    currentMFAChallenge = data;
+    showMFAModal(data);
+}
+
+// Show MFA challenge modal
+function showMFAModal(challengeData) {
+    const modal = document.getElementById('mfaModal');
+    const title = document.getElementById('mfaTitle');
+    const message = document.getElementById('mfaMessage');
+    const label = document.getElementById('mfaLabel');
+    const help = document.getElementById('mfaHelp');
+
+    // Clear any previous input
+    document.getElementById('mfaCode').value = '';
+    clearStatus('mfaStatus');
+
+    // Customize modal based on challenge type
+    if (challengeData.challengeName === 'SMS_MFA') {
+        title.textContent = '📲 SMS Authentication';
+        message.textContent = 'We\'ve sent a 6-digit code to your phone:';
+        label.textContent = 'Enter SMS Code:';
+        help.textContent = 'Check your SMS messages for the verification code';
+    } else if (challengeData.challengeName === 'SOFTWARE_TOKEN_MFA') {
+        title.textContent = '📱 Authenticator App';
+        message.textContent = 'Enter the 6-digit code from your authenticator app:';
+        label.textContent = 'Enter TOTP Code:';
+        help.textContent = 'Open your authenticator app (Google Authenticator, Authy, etc.)';
+    } else {
+        title.textContent = '🔐 Multi-Factor Authentication';
+        message.textContent = 'Please enter your verification code:';
+        label.textContent = 'Enter Code:';
+        help.textContent = 'Check your authentication method for the code';
+    }
+
+    modal.style.display = 'block';
+    document.getElementById('mfaCode').focus();
+}
+
+// Close MFA modal
+function closeMFAModal() {
+    document.getElementById('mfaModal').style.display = 'none';
+    currentMFAChallenge = null;
+    clearStatus('mfaStatus');
+}
+
+// Handle MFA code input keypress
+function handleMFAKeypress(event) {
+    if (event.key === 'Enter') {
+        submitMFAChallenge();
+    }
+}
+
+// Submit MFA challenge response
+async function submitMFAChallenge() {
+    if (!currentMFAChallenge) {
+        showStatus('mfaStatus', 'No active MFA challenge', 'error');
+        return;
+    }
+
+    const mfaCode = document.getElementById('mfaCode').value;
+
+    if (!mfaCode || mfaCode.length !== 6) {
+        showStatus('mfaStatus', 'Please enter a 6-digit code', 'error');
+        return;
+    }
+
+    const button = document.querySelector('#mfaModal button');
+    const originalText = button.textContent;
+    button.textContent = '🔄 Verifying...';
+    button.disabled = true;
+
+    try {
+        const response = await fetch('/auth/mfa/challenge', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                session: currentMFAChallenge.session,
+                challengeName: currentMFAChallenge.challengeName,
+                challengeResponse: mfaCode,
+                username: currentMFAChallenge.challengeParameters?.USERNAME ||
+                          localStorage.getItem('pendingUsername') ||
+                          document.getElementById('username').value
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            if (data.accessToken) {
+                // MFA completed successfully
+                authToken = data.accessToken;
+                currentUser = data.user;
+                localStorage.setItem('authToken', authToken);
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+                closeMFAModal();
+                showMainApp();
+                loadVideos();
+                refreshJobs();
+                showStatus('loginStatus', 'Login with MFA completed successfully!', 'success');
+            } else {
+                // Another challenge required (rare)
+                showStatus('mfaStatus', 'Additional verification required', 'info');
+                currentMFAChallenge = data;
+                showMFAModal(data);
+            }
+        } else {
+            showStatus('mfaStatus', data.error || 'MFA verification failed', 'error');
+        }
+    } catch (error) {
+        showStatus('mfaStatus', 'MFA verification error: ' + error.message, 'error');
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+    }
 }
 
 function logout() {
@@ -254,7 +375,7 @@ function logout() {
 function showMainApp() {
     document.getElementById('loginSection').style.display = 'none';
     document.getElementById('mainApp').classList.remove('hidden');
-    
+
     // Update user welcome section
     if (currentUser) {
         document.getElementById('currentUsername').textContent = currentUser.username;
@@ -262,12 +383,15 @@ function showMainApp() {
         roleElement.textContent = currentUser.role;
         roleElement.className = `user-role ${currentUser.role}`;
     }
-    
+
     // Show admin section for admin users
     if (currentUser && currentUser.role === 'admin') {
         document.getElementById('adminSection').style.display = 'block';
     }
-    
+
+    // Check MFA status when app loads
+    setTimeout(() => checkMFAStatus(), 1000);
+
     // Start real-time job updates
     startJobUpdates();
 }
@@ -1174,6 +1298,189 @@ async function downloadOriginalVideo(videoId, filename) {
     } catch (error) {
         console.error('Original video download error:', error);
         alert('Download failed: ' + error.message);
+    }
+}
+
+// MFA Setup Functions
+
+// Check current MFA status
+async function checkMFAStatus() {
+    try {
+        const response = await fetch('/auth/mfa/status', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            const statusElement = document.getElementById('currentMfaStatus');
+            if (data.mfaEnabled) {
+                statusElement.innerHTML = `
+                    <span style="color: #28a745;">✅ Enabled</span><br>
+                    <small>Preferred method: ${data.preferredMfaMethod || 'Not set'}</small><br>
+                    <small>Available methods: ${data.enabledMfaMethods?.join(', ') || 'None'}</small>
+                `;
+            } else {
+                statusElement.innerHTML = '<span style="color: #dc3545;">❌ Disabled</span>';
+            }
+        } else {
+            document.getElementById('currentMfaStatus').textContent = 'Error checking status';
+        }
+    } catch (error) {
+        console.error('Error checking MFA status:', error);
+        document.getElementById('currentMfaStatus').textContent = 'Error checking status';
+    }
+}
+
+// Setup TOTP (Authenticator App)
+async function setupTOTP() {
+    try {
+        showStatus('mfaSetupStatus', 'Setting up authenticator app...', 'info');
+
+        const response = await fetch('/auth/mfa/setup/totp', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Show QR code and setup instructions
+            showStatus('mfaSetupStatus', `
+                <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
+                    <h3>📱 Setup Authenticator App</h3>
+                    <p><strong>Step 1:</strong> Install an authenticator app:</p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>Google Authenticator</li>
+                        <li>Microsoft Authenticator</li>
+                        <li>Authy</li>
+                    </ul>
+
+                    <p><strong>Step 2:</strong> Scan this QR code or enter the secret manually:</p>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 10px 0;">
+                        <div id="qrcode" style="text-align: center;">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qrCodeData)}"
+                                 alt="QR Code" style="border: 1px solid #ddd;">
+                        </div>
+                        <p style="font-family: monospace; word-break: break-all; font-size: 12px; margin: 10px 0;">
+                            Secret: ${data.secretCode}
+                        </p>
+                    </div>
+
+                    <p><strong>Step 3:</strong> Enter the 6-digit code from your app:</p>
+                    <div style="display: flex; gap: 10px; align-items: center; margin: 10px 0;">
+                        <input type="text" id="totpVerificationCode" placeholder="000000" maxlength="6"
+                               style="padding: 8px; font-size: 16px; text-align: center; width: 120px;">
+                        <button onclick="completeTOTPSetup()" style="padding: 8px 16px;">
+                            ✅ Complete Setup
+                        </button>
+                    </div>
+                </div>
+            `, 'info');
+        } else {
+            showStatus('mfaSetupStatus', data.error || 'TOTP setup failed', 'error');
+        }
+    } catch (error) {
+        showStatus('mfaSetupStatus', 'TOTP setup error: ' + error.message, 'error');
+    }
+}
+
+// Complete TOTP setup
+async function completeTOTPSetup() {
+    const verificationCode = document.getElementById('totpVerificationCode').value;
+
+    if (!verificationCode || verificationCode.length !== 6) {
+        showStatus('mfaSetupStatus', 'Please enter a 6-digit verification code', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/auth/mfa/setup/totp/verify', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ userCode: verificationCode })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showStatus('mfaSetupStatus', 'TOTP setup completed successfully! 🎉', 'success');
+            setTimeout(() => checkMFAStatus(), 1000);
+        } else {
+            showStatus('mfaSetupStatus', data.error || 'TOTP verification failed', 'error');
+        }
+    } catch (error) {
+        showStatus('mfaSetupStatus', 'TOTP verification error: ' + error.message, 'error');
+    }
+}
+
+// Setup SMS MFA
+async function setupSMS() {
+    const phoneNumber = prompt('Enter your phone number in international format (+1234567890):');
+
+    if (!phoneNumber) {
+        return;
+    }
+
+    // Basic validation
+    const phoneRegex = /^\+[1-9]\d{1,14}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+        showStatus('mfaSetupStatus', 'Please enter phone number in international format (+1234567890)', 'error');
+        return;
+    }
+
+    try {
+        showStatus('mfaSetupStatus', 'Setting up SMS authentication...', 'info');
+
+        const response = await fetch('/auth/mfa/setup/sms', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phoneNumber })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showStatus('mfaSetupStatus', 'SMS MFA setup completed successfully! 🎉', 'success');
+            setTimeout(() => checkMFAStatus(), 1000);
+        } else {
+            showStatus('mfaSetupStatus', data.error || 'SMS setup failed', 'error');
+        }
+    } catch (error) {
+        showStatus('mfaSetupStatus', 'SMS setup error: ' + error.message, 'error');
+    }
+}
+
+// Disable MFA
+async function disableMFA() {
+    if (!confirm('Are you sure you want to disable Multi-Factor Authentication? This will make your account less secure.')) {
+        return;
+    }
+
+    try {
+        showStatus('mfaSetupStatus', 'Disabling MFA...', 'info');
+
+        const response = await fetch('/auth/mfa/disable', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showStatus('mfaSetupStatus', 'MFA disabled successfully', 'success');
+            setTimeout(() => checkMFAStatus(), 1000);
+        } else {
+            showStatus('mfaSetupStatus', data.error || 'Failed to disable MFA', 'error');
+        }
+    } catch (error) {
+        showStatus('mfaSetupStatus', 'Error disabling MFA: ' + error.message, 'error');
     }
 }
 

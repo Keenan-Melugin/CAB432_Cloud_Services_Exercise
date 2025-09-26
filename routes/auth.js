@@ -10,7 +10,8 @@ const {
   setMFAPreference,
   updateUserPhoneNumber,
   getUserDetails,
-  exchangeCodeForTokens
+  exchangeCodeForTokens,
+  getCognitoConfig
 } = require('../utils/cognito');
 const { authenticateToken, requireGroups } = require('../utils/auth');
 
@@ -19,14 +20,14 @@ const router = express.Router();
 // POST /auth/signup - User registration with Cognito
 router.post('/signup', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { username, email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: 'Username, email and password required' });
     }
 
     // Register user with Cognito
-    const result = await signUpUser(email, password);
+    const result = await signUpUser(username, email, password);
 
     res.json({
       message: 'User registered successfully. Please check your email for verification code.',
@@ -141,18 +142,23 @@ router.post('/login', async (req, res) => {
 });
 
 // GET /auth/google - Redirect to Google OAuth
-router.get('/google', (req, res) => {
-  const { cognitoConfig } = require('../utils/cognito');
+router.get('/google', async (req, res) => {
+  try {
+    const cognitoConfig = await getCognitoConfig();
 
-  const googleAuthUrl = `${cognitoConfig.hostedUIUrl}/oauth2/authorize` +
-    `?identity_provider=Google` +
-    `&redirect_uri=${encodeURIComponent(cognitoConfig.redirectUri)}` +
-    `&response_type=code` +
-    `&client_id=${cognitoConfig.clientId}` +
-    `&scope=email+openid+profile`;
+    const googleAuthUrl = `${cognitoConfig.hostedUIUrl}/oauth2/authorize` +
+      `?identity_provider=Google` +
+      `&redirect_uri=${encodeURIComponent(cognitoConfig.redirectUri)}` +
+      `&response_type=code` +
+      `&client_id=${cognitoConfig.clientId}` +
+      `&scope=email+openid+profile`;
 
-  console.log('Redirecting to Google OAuth:', googleAuthUrl);
-  res.redirect(googleAuthUrl);
+    console.log('Redirecting to Google OAuth:', googleAuthUrl);
+    res.redirect(googleAuthUrl);
+  } catch (error) {
+    console.error('Failed to get Cognito config for Google OAuth:', error);
+    res.status(500).json({ error: 'OAuth configuration failed' });
+  }
 });
 
 // GET /auth/callback - OAuth callback (for hosted UI integration)

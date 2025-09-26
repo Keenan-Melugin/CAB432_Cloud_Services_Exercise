@@ -17,18 +17,50 @@ const {
   GetUserCommand
 } = require('@aws-sdk/client-cognito-identity-provider');
 const crypto = require('crypto');
+const { getCognitoSecrets } = require('./secrets-manager');
 
-const cognitoConfig = {
-  region: process.env.COGNITO_REGION || 'ap-southeast-2',
-  userPoolId: process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z',
-  clientId: process.env.COGNITO_CLIENT_ID || '7n4paksk83ssgneufvkvo0m3qa',
-  clientSecret: process.env.COGNITO_CLIENT_SECRET || 'j851eik75aqeho124e4ogkl390kuu0i3gper5bgf5ce54tp4ugc',
-  // Federated Identity Configuration
-  hostedUIUrl: process.env.COGNITO_HOSTED_UI_URL || 'https://ap-southeast-2nxyjmyl5z.auth.ap-southeast-2.amazoncognito.com',
-  redirectUri: process.env.NODE_ENV === 'production'
-    ? process.env.COGNITO_REDIRECT_URI || 'https://mytranscoder.cab432.com/auth/callback'
-    : 'http://localhost:3000/auth/callback'
-};
+// Cache for Cognito configuration to avoid repeated Secrets Manager calls
+let cognitoConfigCache = null;
+
+/**
+ * Get Cognito configuration from Secrets Manager with fallback to environment variables
+ * @param {boolean} forceRefresh - Force refresh from Secrets Manager
+ * @returns {Promise<Object>} Cognito configuration object
+ */
+async function getCognitoConfig(forceRefresh = false) {
+  if (!forceRefresh && cognitoConfigCache) {
+    return cognitoConfigCache;
+  }
+
+  try {
+    // Load sensitive config from Secrets Manager
+    const secrets = await getCognitoSecrets();
+
+    cognitoConfigCache = {
+      region: secrets.region || process.env.COGNITO_REGION || 'ap-southeast-2',
+      userPoolId: secrets.userPoolId || process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z',
+      clientId: secrets.clientId || process.env.COGNITO_CLIENT_ID,
+      clientSecret: secrets.clientSecret || process.env.COGNITO_CLIENT_SECRET,
+      // Federated Identity Configuration
+      hostedUIUrl: secrets.hostedUIUrl || process.env.COGNITO_HOSTED_UI_URL || 'https://ap-southeast-2nxyjmyl5z.auth.ap-southeast-2.amazoncognito.com',
+      redirectUri: process.env.NODE_ENV === 'production'
+        ? process.env.COGNITO_REDIRECT_URI || 'https://mytranscoder.cab432.com/auth/callback'
+        : 'http://localhost:3000/auth/callback'
+    };
+
+    // Validate required configuration
+    if (!cognitoConfigCache.clientId || !cognitoConfigCache.clientSecret || !cognitoConfigCache.userPoolId) {
+      throw new Error('Missing required Cognito configuration: clientId, clientSecret, or userPoolId');
+    }
+
+    console.log('🔑 Cognito configuration loaded successfully');
+    return cognitoConfigCache;
+
+  } catch (error) {
+    console.error('❌ Failed to load Cognito configuration:', error.message);
+    throw error;
+  }
+}
 
 // Calculate SECRET_HASH as required by Cognito when client secret is used
 function calculateSecretHash(username, clientId, clientSecret) {
@@ -38,17 +70,19 @@ function calculateSecretHash(username, clientId, clientSecret) {
     .digest('base64');
 }
 
+// Initialize Cognito client with default region (will use config region in functions)
 const cognitoClient = new CognitoIdentityProviderClient({
-  region: cognitoConfig.region
+  region: process.env.COGNITO_REGION || 'ap-southeast-2'
 });
 
 // Sign up new user
-async function signUpUser(email, password) {
-  const secretHash = calculateSecretHash(email, cognitoConfig.clientId, cognitoConfig.clientSecret);
+async function signUpUser(username, email, password) {
+  const config = await getCognitoConfig();
+  const secretHash = calculateSecretHash(username, config.clientId, config.clientSecret);
 
   const params = {
-    ClientId: cognitoConfig.clientId,
-    Username: email,
+    ClientId: config.clientId,
+    Username: username,
     Password: password,
     SecretHash: secretHash,
     UserAttributes: [
@@ -69,12 +103,13 @@ async function signUpUser(email, password) {
 }
 
 // Confirm sign up with verification code
-async function confirmSignUp(email, confirmationCode) {
-  const secretHash = calculateSecretHash(email, cognitoConfig.clientId, cognitoConfig.clientSecret);
+async function confirmSignUp(username, confirmationCode) {
+  const config = await getCognitoConfig();
+  const secretHash = calculateSecretHash(username, config.clientId, config.clientSecret);
 
   const params = {
-    ClientId: cognitoConfig.clientId,
-    Username: email,
+    ClientId: config.clientId,
+    Username: username,
     ConfirmationCode: confirmationCode,
     SecretHash: secretHash
   };
@@ -90,10 +125,11 @@ async function confirmSignUp(email, confirmationCode) {
 
 // Sign in user
 async function signInUser(email, password) {
-  const secretHash = calculateSecretHash(email, cognitoConfig.clientId, cognitoConfig.clientSecret);
+  const config = await getCognitoConfig();
+  const secretHash = calculateSecretHash(email, config.clientId, config.clientSecret);
 
   const params = {
-    ClientId: cognitoConfig.clientId,
+    ClientId: config.clientId,
     AuthFlow: 'USER_PASSWORD_AUTH',
     AuthParameters: {
       USERNAME: email,
@@ -113,9 +149,10 @@ async function signInUser(email, password) {
 
 // Create a group
 async function createUserGroup(groupName, description, precedence) {
+  const config = await getCognitoConfig();
   const params = {
     GroupName: groupName,
-    UserPoolId: cognitoConfig.userPoolId,
+    UserPoolId: config.userPoolId,
     Description: description,
     Precedence: precedence
   };
@@ -131,10 +168,11 @@ async function createUserGroup(groupName, description, precedence) {
 
 // Add user to group
 async function addUserToGroup(username, groupName) {
+  const config = await getCognitoConfig();
   const params = {
     Username: username,
     GroupName: groupName,
-    UserPoolId: cognitoConfig.userPoolId
+    UserPoolId: config.userPoolId
   };
 
   try {
@@ -148,10 +186,11 @@ async function addUserToGroup(username, groupName) {
 
 // Remove user from group
 async function removeUserFromGroup(username, groupName) {
+  const config = await getCognitoConfig();
   const params = {
     Username: username,
     GroupName: groupName,
-    UserPoolId: cognitoConfig.userPoolId
+    UserPoolId: config.userPoolId
   };
 
   try {
@@ -165,9 +204,10 @@ async function removeUserFromGroup(username, groupName) {
 
 // Get user's groups
 async function getUserGroups(username) {
+  const config = await getCognitoConfig();
   const params = {
     Username: username,
-    UserPoolId: cognitoConfig.userPoolId
+    UserPoolId: config.userPoolId
   };
 
   try {
@@ -183,7 +223,8 @@ async function getUserGroups(username) {
 
 // Handle MFA challenge response (for SMS, TOTP, and EMAIL)
 async function respondToMFAChallenge(session, challengeName, challengeResponse, username) {
-  const secretHash = calculateSecretHash(username, cognitoConfig.clientId, cognitoConfig.clientSecret);
+  const config = await getCognitoConfig();
+  const secretHash = calculateSecretHash(username, config.clientId, config.clientSecret);
 
   // Determine the challenge response key based on challenge type
   let challengeResponseKey;
@@ -199,7 +240,7 @@ async function respondToMFAChallenge(session, challengeName, challengeResponse, 
   }
 
   const params = {
-    ClientId: cognitoConfig.clientId,
+    ClientId: config.clientId,
     ChallengeName: challengeName, // 'SMS_MFA', 'SOFTWARE_TOKEN_MFA', or 'EMAIL_MFA'
     Session: session,
     SecretHash: secretHash,
@@ -278,9 +319,10 @@ async function setMFAPreference(accessToken, smsPreference = 'DISABLED', softwar
 
 // Admin set user MFA preference (requires admin permissions)
 async function adminSetMFAPreference(username, smsPreference = 'DISABLED', softwareTokenPreference = 'ENABLED') {
+  const config = await getCognitoConfig();
   const params = {
     Username: username,
-    UserPoolId: cognitoConfig.userPoolId,
+    UserPoolId: config.userPoolId,
     SMSMfaSettings: {
       Enabled: smsPreference === 'ENABLED',
       PreferredMfa: smsPreference === 'PREFERRED'
@@ -302,8 +344,9 @@ async function adminSetMFAPreference(username, smsPreference = 'DISABLED', softw
 
 // Update user phone number for SMS MFA
 async function updateUserPhoneNumber(username, phoneNumber) {
+  const config = await getCognitoConfig();
   const params = {
-    UserPoolId: cognitoConfig.userPoolId,
+    UserPoolId: config.userPoolId,
     Username: username,
     UserAttributes: [
       {
@@ -344,15 +387,16 @@ async function getUserDetails(accessToken) {
 // Exchange OAuth authorization code for tokens
 async function exchangeCodeForTokens(authCode) {
   const axios = require('axios');
+  const config = await getCognitoConfig();
 
-  const tokenEndpoint = `${cognitoConfig.hostedUIUrl}/oauth2/token`;
+  const tokenEndpoint = `${config.hostedUIUrl}/oauth2/token`;
 
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
-    client_id: cognitoConfig.clientId,
-    client_secret: cognitoConfig.clientSecret,
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
     code: authCode,
-    redirect_uri: cognitoConfig.redirectUri
+    redirect_uri: config.redirectUri
   });
 
   try {
@@ -371,7 +415,7 @@ async function exchangeCodeForTokens(authCode) {
 
 module.exports = {
   cognitoClient,
-  cognitoConfig,
+  getCognitoConfig,
   signUpUser,
   confirmSignUp,
   signInUser,
