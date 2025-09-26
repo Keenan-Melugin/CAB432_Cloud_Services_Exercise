@@ -184,7 +184,11 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
 // GET /transcode/jobs - List user's transcoding jobs
 router.get('/jobs', authenticateToken, async (req, res) => {
   try {
-    const jobs = await database.getTranscodeJobsByUser(req.user.id, req.user.role);
+    // Use sub for Cognito users, id for legacy users
+    const userId = req.user.isCognito ? req.user.sub : req.user.id;
+    const userRole = req.user.isCognito ? (req.user.groups?.includes('admin') ? 'admin' : 'user') : req.user.role;
+
+    const jobs = await database.getTranscodeJobsByUser(userId, userRole);
 
     if (!Array.isArray(jobs)) {
       return res.json([]);

@@ -114,6 +114,21 @@ function requireAdmin(req, res, next) {
   return requireGroups('admin')(req, res, next);
 }
 
+// Helper function to get user ID and role for both Cognito and legacy users
+function getUserIdAndRole(user) {
+  if (user.isCognito) {
+    return {
+      userId: user.sub,
+      userRole: user.groups?.includes('admin') ? 'admin' : 'user'
+    };
+  } else {
+    return {
+      userId: user.id,
+      userRole: user.role
+    };
+  }
+}
+
 // Generate JWT token
 function generateToken(user) {
   const payload = {
@@ -130,5 +145,6 @@ module.exports = {
   requireAdmin,
   requireGroups,
   generateToken,
+  getUserIdAndRole,
   JWT_SECRET
 };

@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const database = require('../utils/database-abstraction');
-const { authenticateToken } = require('../utils/auth');
+const { authenticateToken, getUserIdAndRole } = require('../utils/auth');
 const storage = require('../utils/storage');
 
 const router = express.Router();
@@ -89,7 +89,11 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
 // GET /videos - List user's videos
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const videos = await database.getVideosByUser(req.user.id, req.user.role);
+    // Use sub for Cognito users, id for legacy users
+    const userId = req.user.isCognito ? req.user.sub : req.user.id;
+    const userRole = req.user.isCognito ? (req.user.groups?.includes('admin') ? 'admin' : 'user') : req.user.role;
+
+    const videos = await database.getVideosByUser(userId, userRole);
 
     if (!Array.isArray(videos)) {
       return res.json([]);
