@@ -298,83 +298,39 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
 });
 
 // GET /transcode/events - Server-Sent Events for real-time job updates
-router.get('/events', async (req, res) => {
+router.get('/events', (req, res) => {
   // Extract token from query parameter since EventSource doesn't support custom headers
-  const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
+  const token = req.query.token;
 
   if (!token) {
+    console.error('SSE: No token provided');
     return res.status(401).json({ error: 'Authentication token required' });
   }
 
-  // Use the same token verification logic as authenticateToken middleware
-  const jwt = require('jsonwebtoken');
-  const jwksClient = require('jwks-rsa');
-  const { JWT_SECRET } = require('../utils/auth');
+  // Add token to authorization header for middleware
+  req.headers.authorization = `Bearer ${token}`;
 
-  let user;
+  // Use the existing authenticateToken middleware logic
+  const { authenticateToken } = require('../utils/auth');
 
-  // First check if this looks like a Cognito JWT (has 3 parts)
-  const tokenParts = token.split('.');
-  if (tokenParts.length !== 3) {
-    return res.status(401).json({ error: 'Malformed token' });
-  }
+  // Create a mock next function to handle the middleware
+  const mockNext = (error) => {
+    if (error) {
+      console.error('SSE authentication failed:', error);
+      return res.status(401).json({ error: 'Authentication failed' });
+    }
 
-  // Try to verify as Cognito token first
-  const cognitoJwksClient = jwksClient({
-    jwksUri: `https://cognito-idp.${process.env.COGNITO_REGION || 'ap-southeast-2'}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z'}/.well-known/jwks.json`,
-    cache: true,
-    cacheMaxAge: 86400000,
-    rateLimit: true,
-    jwksRequestsPerMinute: 5
-  });
+    // Authentication successful, continue with SSE setup
+    setupSSEConnection(req, res);
+  };
 
-  function getKey(header, callback) {
-    cognitoJwksClient.getSigningKey(header.kid, (err, key) => {
-      if (err) {
-        return callback(err);
-      }
-      if (!key) {
-        return callback(new Error('Unable to find a signing key that matches'));
-      }
-      const signingKey = key.publicKey || key.rsaPublicKey;
-      callback(null, signingKey);
-    });
-  }
+  // Call the authenticateToken middleware
+  authenticateToken(req, res, mockNext);
+});
 
-  try {
-    // Try Cognito verification first
-    user = await new Promise((resolve, reject) => {
-      jwt.verify(token, getKey, {
-        issuer: `https://cognito-idp.${process.env.COGNITO_REGION || 'ap-southeast-2'}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z'}`,
-        algorithms: ['RS256']
-      }, (err, decoded) => {
-        if (!err) {
-          // Cognito token verified successfully
-          resolve({
-            sub: decoded.sub,
-            email: decoded.email || decoded.username,
-            username: decoded['cognito:username'],
-            tokenUse: decoded.token_use,
-            groups: decoded['cognito:groups'] || [],
-            isCognito: true
-          });
-        } else {
-          // Fallback to legacy JWT verification
-          jwt.verify(token, JWT_SECRET, (legacyErr, legacyUser) => {
-            if (legacyErr) {
-              reject(new Error('Invalid or expired token'));
-            } else {
-              legacyUser.isCognito = false;
-              resolve(legacyUser);
-            }
-          });
-        }
-      });
-    });
-  } catch (error) {
-    console.error('SSE token verification failed:', error);
-    return res.status(401).json({ error: 'Invalid or expired token' });
-  }
+function setupSSEConnection(req, res) {
+  console.log('Setting up SSE connection for user:', req.user.email || req.user.username);
+
   // Set headers for SSE
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -386,7 +342,7 @@ router.get('/events', async (req, res) => {
 
   // Store this connection using consistent user ID extraction
   const { getUserIdAndRole } = require('../utils/auth');
-  const { userId } = getUserIdAndRole(user);
+  const { userId } = getUserIdAndRole(req.user);
   if (!sseConnections.has(userId)) {
     sseConnections.set(userId, []);
   }
@@ -409,7 +365,7 @@ router.get('/events', async (req, res) => {
       }
     }
   });
-});
+}
 
 // GET /transcode/stats - System statistics (admin only)
 router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
