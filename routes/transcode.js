@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const database = require('../utils/database-abstraction');
-const { authenticateToken, requireAdmin } = require('../utils/auth');
+const { authenticateToken, requireAdmin, getUserIdAndRole } = require('../utils/auth');
 const storage = require('../utils/storage');
 
 const router = express.Router();
@@ -77,13 +77,14 @@ router.post('/jobs', authenticateToken, async (req, res) => {
     }
 
     // Check permissions - regular users can only transcode their own videos
-    if (req.user.role !== 'admin' && video.user_id !== req.user.id) {
+    const { userId, userRole } = getUserIdAndRole(req.user);
+    if (userRole !== 'admin' && video.user_id !== userId) {
       return res.status(404).json({ error: 'Video not found or access denied' });
     }
 
     // Create transcoding job
     const job = await database.createTranscodeJob({
-      user_id: req.user.id,
+      user_id: userId,
       video_id: video_id,
       original_filename: video.original_name,
       target_resolution: target_resolution,
@@ -121,7 +122,8 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
     const { jobId } = req.params;
 
     // Get job details including storage keys
-    const job = await database.getTranscodeJobWithVideo(jobId, req.user.id, req.user.role);
+    const { userId, userRole } = getUserIdAndRole(req.user);
+    const job = await database.getTranscodeJobWithVideo(jobId, userId, userRole);
     
     if (!job) {
       return res.status(404).json({ error: 'Job not found or access denied' });
@@ -184,10 +186,8 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
 // GET /transcode/jobs - List user's transcoding jobs
 router.get('/jobs', authenticateToken, async (req, res) => {
   try {
-    // Use sub for Cognito users, id for legacy users
-    const userId = req.user.isCognito ? req.user.sub : req.user.id;
-    const userRole = req.user.isCognito ? (req.user.groups?.includes('admin') ? 'admin' : 'user') : req.user.role;
-
+    // Use helper function for consistent user ID and role handling
+    const { userId, userRole } = getUserIdAndRole(req.user);
     const jobs = await database.getTranscodeJobsByUser(userId, userRole);
 
     if (!Array.isArray(jobs)) {
@@ -213,7 +213,8 @@ router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
     }
 
     // Check permissions for non-admin users
-    if (req.user.role !== 'admin' && job.user_id !== req.user.id) {
+    const { userId, userRole } = getUserIdAndRole(req.user);
+    if (userRole !== 'admin' && job.user_id !== userId) {
       return res.status(404).json({ error: 'Job not found' });
     }
 
@@ -228,7 +229,8 @@ router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
 // GET /transcode/download/:jobId - Generate pre-signed URL for processed video download
 router.get('/download/:jobId', authenticateToken, async (req, res) => {
   try {
-    console.log('[DEBUG] Download request for job:', req.params.jobId, 'by user:', req.user.id);
+    const { userId, userRole } = getUserIdAndRole(req.user);
+    console.log('[DEBUG] Download request for job:', req.params.jobId, 'by user:', userId);
 
     const job = await database.getTranscodeJobById(req.params.jobId);
 
@@ -241,7 +243,7 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
     }
 
     // Check permissions - regular users can only download their own jobs
-    if (req.user.role !== 'admin' && job.user_id !== req.user.id) {
+    if (userRole !== 'admin' && job.user_id !== userId) {
       return res.status(404).json({ error: 'Completed job not found' });
     }
 

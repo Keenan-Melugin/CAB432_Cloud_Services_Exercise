@@ -42,18 +42,20 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
     const sizeMB = file.size / (1024 * 1024);
 
     // Generate unique filename
-    const uniqueFilename = `${req.user.username}_${Date.now()}_${file.originalname}`;
+    const { userId } = getUserIdAndRole(req.user);
+    const username = req.user.isCognito ? req.user.email : req.user.username;
+    const uniqueFilename = `${username}_${Date.now()}_${file.originalname}`;
 
     // Upload file using storage abstraction layer
     const storageResult = await storage.uploadFile(file.buffer, uniqueFilename, {
       category: 'original',
       contentType: file.mimetype,
-      userId: req.user.id
+      userId: userId
     });
 
     // Save video metadata to database
     const video = await database.createVideo({
-      user_id: req.user.id,
+      user_id: userId,
       filename: uniqueFilename,
       original_name: file.originalname,
       file_path: storageResult.location,
@@ -89,10 +91,8 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
 // GET /videos - List user's videos
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    // Use sub for Cognito users, id for legacy users
-    const userId = req.user.isCognito ? req.user.sub : req.user.id;
-    const userRole = req.user.isCognito ? (req.user.groups?.includes('admin') ? 'admin' : 'user') : req.user.role;
-
+    // Use helper function for consistent user ID and role handling
+    const { userId, userRole } = getUserIdAndRole(req.user);
     const videos = await database.getVideosByUser(userId, userRole);
 
     if (!Array.isArray(videos)) {
@@ -126,7 +126,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     // Regular users can only see their own videos
-    if (req.user.role !== 'admin' && video.user_id !== req.user.id) {
+    const { userId, userRole } = getUserIdAndRole(req.user);
+    if (userRole !== 'admin' && video.user_id !== userId) {
       return res.status(404).json({ error: 'Video not found' });
     }
 
@@ -155,7 +156,8 @@ router.get('/:id/download', authenticateToken, async (req, res) => {
     }
 
     // Check permissions - regular users can only download their own videos
-    if (req.user.role !== 'admin' && video.user_id !== req.user.id) {
+    const { userId, userRole } = getUserIdAndRole(req.user);
+    if (userRole !== 'admin' && video.user_id !== userId) {
       return res.status(404).json({ error: 'Video not found' });
     }
 
