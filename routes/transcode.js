@@ -9,30 +9,20 @@ const storage = require('../utils/storage');
 
 const router = express.Router();
 
-// Store SSE connections for real-time updates
-const sseConnections = new Map();
+// Simple SSE progress tracking
+const progressConnections = new Map(); // userId -> response object
 
-// Function to broadcast job updates to connected clients
-function broadcastJobUpdate(userId, jobUpdate) {
-  console.log(`Attempting to broadcast to user ${userId}, status: ${jobUpdate.status}, progress: ${jobUpdate.progress?.percent || 'N/A'}%`);
-
-  const connections = sseConnections.get(userId);
-  console.log(`Found ${connections ? connections.length : 0} connections for user ${userId}`);
-
-  if (connections && connections.length > 0) {
-    const data = JSON.stringify({ type: 'jobUpdate', data: jobUpdate });
-    console.log(`Broadcasting SSE data:`, data.substring(0, 100) + '...');
-
-    connections.forEach((res, index) => {
-      try {
-        res.write(`data: ${data}\n\n`);
-        console.log(`Sent update to connection ${index}`);
-      } catch (error) {
-        console.error(`Error sending SSE update to connection ${index}:`, error.message);
-      }
-    });
-  } else {
-    console.log(`No SSE connections found for user ${userId}`);
+function sendProgress(userId, jobId, status, percent = 0, details = {}) {
+  const connection = progressConnections.get(userId);
+  if (connection) {
+    try {
+      const data = { jobId, status, progress: percent, ...details };
+      connection.write(`data: ${JSON.stringify(data)}\n\n`);
+      console.log(`✓ Sent progress to ${userId}: ${percent}% (${status})`);
+    } catch (error) {
+      console.log(`✗ Connection lost for ${userId}`);
+      progressConnections.delete(userId);
+    }
   }
 }
 
@@ -306,129 +296,48 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /transcode/events - Server-Sent Events for real-time job updates
-router.get('/events', (req, res) => {
-  console.log('SSE endpoint accessed, token present:', !!req.query.token);
-
-  // Extract token from query parameter since EventSource doesn't support custom headers
+// GET /transcode/progress - Simple SSE endpoint for progress updates
+router.get('/progress', (req, res) => {
+  // Handle token from URL parameter since EventSource doesn't support headers
   const token = req.query.token;
-
   if (!token) {
-    console.error('SSE: No token provided');
-    // Return text response for EventSource compatibility
-    res.writeHead(401, {
-      'Content-Type': 'text/plain',
-      'Access-Control-Allow-Origin': '*'
-    });
-    res.end('Authentication token required');
+    res.status(401).send('Token required');
     return;
   }
 
-  // Add token to authorization header for middleware
+  // Add token to headers for auth middleware
   req.headers.authorization = `Bearer ${token}`;
-  console.log('SSE: Token added to headers');
 
-  // Use the existing authenticateToken middleware logic
-  const { authenticateToken } = require('../utils/auth');
+  const { authenticateToken, getUserIdAndRole } = require('../utils/auth');
 
-  // Create a mock next function to handle the middleware
-  const mockNext = (error) => {
-    if (error) {
-      console.error('SSE authentication failed:', error);
-      // Return text response for EventSource compatibility
-      res.writeHead(401, {
-        'Content-Type': 'text/plain',
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end('Authentication failed: ' + error.message);
-      return;
-    }
+  // Authenticate the token
+  authenticateToken(req, res, () => {
+    const { userId } = getUserIdAndRole(req.user);
+    console.log(`📡 SSE connection from: ${userId}`);
 
-    console.log('SSE: Authentication successful for user:', req.user.email || req.user.username);
-    // Authentication successful, continue with SSE setup
-    setupSSEConnection(req, res);
-  };
-
-  // Call the authenticateToken middleware
-  try {
-    authenticateToken(req, res, mockNext);
-  } catch (error) {
-    console.error('SSE: Error in authenticateToken:', error);
-    res.writeHead(500, {
-      'Content-Type': 'text/plain',
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
       'Access-Control-Allow-Origin': '*'
     });
-    res.end('Internal server error');
-  }
+
+    // Store connection
+    progressConnections.set(userId, res);
+    console.log(`✅ SSE connected: ${userId}`);
+
+    // Send welcome message
+    res.write(`data: {"status":"connected"}\n\n`);
+
+    // Cleanup on disconnect
+    req.on('close', () => {
+      progressConnections.delete(userId);
+      console.log(`❌ SSE disconnected: ${userId}`);
+    });
+  });
 });
 
-function setupSSEConnection(req, res) {
-  console.log('Setting up SSE connection for user:', req.user.email || req.user.username);
-
-  // Set headers for SSE with better keep-alive settings
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-store, must-revalidate',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Cache-Control',
-    'X-Accel-Buffering': 'no', // Disable nginx buffering
-    'Transfer-Encoding': 'chunked'
-  });
-
-  // Store this connection using consistent user ID extraction
-  const { getUserIdAndRole } = require('../utils/auth');
-  const { userId } = getUserIdAndRole(req.user);
-
-  console.log(`Setting up SSE for userId: ${userId}`);
-
-  if (!sseConnections.has(userId)) {
-    sseConnections.set(userId, []);
-  }
-  sseConnections.get(userId).push(res);
-
-  console.log(`SSE connection established for user: ${userId}`);
-
-  // Send initial messages with error handling
-  try {
-    // Send initial keep-alive to establish connection
-    res.write(': keep-alive\n\n');
-
-    // Send initial connection message
-    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to job updates' })}\n\n`);
-    console.log(`Initial SSE messages sent successfully to user: ${userId}`);
-  } catch (error) {
-    console.error(`Error sending initial SSE messages to user ${userId}:`, error);
-    return;
-  }
-
-  // Set up periodic keep-alive ping every 30 seconds
-  const keepAliveInterval = setInterval(() => {
-    try {
-      res.write(': heartbeat\n\n');
-      console.log(`Sent keep-alive ping to user ${userId}`);
-    } catch (error) {
-      console.log(`Keep-alive failed for user ${userId}, cleaning up connection`);
-      clearInterval(keepAliveInterval);
-    }
-  }, 30000);
-
-  // Clean up on client disconnect
-  req.on('close', () => {
-    console.log(`SSE connection closed for user: ${userId}`);
-    clearInterval(keepAliveInterval);
-    const connections = sseConnections.get(userId);
-    if (connections) {
-      const index = connections.indexOf(res);
-      if (index !== -1) {
-        connections.splice(index, 1);
-      }
-      if (connections.length === 0) {
-        sseConnections.delete(userId);
-      }
-    }
-  });
-}
 
 // GET /transcode/stats - System statistics (admin only)
 router.get('/stats', authenticateToken, requireAdmin, async (req, res) => {
@@ -558,19 +467,8 @@ async function transcodeVideoAsync(job) {
         .on('start', (commandLine) => {
           console.log(`FFmpeg command: ${commandLine}`);
           
-          // Broadcast job start notification
-          broadcastJobUpdate(job.user_id, {
-            id: job.id,
-            status: 'processing',
-            progress: {
-              percent: 0,
-              timemark: '00:00:00',
-              currentKbps: 0,
-              fps: 0,
-              frames: 0
-            },
-            message: 'Transcoding started...'
-          });
+          // Send start notification
+          sendProgress(job.user_id, job.id, 'processing', 0, { message: 'Transcoding started...' });
         })
         .on('progress', (progress) => {
           const percent = Math.round(progress.percent || 0);
@@ -579,17 +477,11 @@ async function transcodeVideoAsync(job) {
 
           console.log(`Processing: ${percent}% done (${currentTime}, ${currentKbs}kb/s)`);
 
-          // Broadcast real-time progress to connected clients
-          broadcastJobUpdate(job.user_id, {
-            id: job.id,
-            status: 'processing',
-            progress: {
-              percent: percent,
-              timemark: currentTime,
-              currentKbps: currentKbs,
-              fps: Math.round(progress.currentFps || 0),
-              frames: progress.frames || 0
-            }
+          // Send real-time progress
+          sendProgress(job.user_id, job.id, 'processing', percent, {
+            timemark: currentTime,
+            kbps: currentKbs,
+            fps: Math.round(progress.currentFps || 0)
           });
         })
         .on('end', () => {
@@ -646,16 +538,10 @@ async function transcodeVideoAsync(job) {
             const percent = Math.round(progress.percent || 0);
             console.log(`Concatenating: ${percent}% complete`);
             
-            // Broadcast concatenation progress
-            broadcastJobUpdate(job.user_id, {
-              id: job.id,
-              status: 'processing',
-              progress: {
-                percent: Math.min(95 + Math.round(percent / 20), 99), // Show 95-99% during concatenation
-                timemark: progress.timemark || '00:00:00',
-                currentKbps: Math.round(progress.currentKbps || 0),
-                fps: Math.round(progress.currentFps || 0)
-              },
+            // Send concatenation progress
+            const finalPercent = Math.min(95 + Math.round(percent / 20), 99);
+            sendProgress(job.user_id, job.id, 'processing', finalPercent, {
+              stage: 'finalizing',
               message: `Stitching ${repeatCount} iterations together...`
             });
           })
@@ -738,12 +624,10 @@ async function transcodeVideoAsync(job) {
 
     console.log(`Job ${job.id} completed in ${processingTime} seconds`);
 
-    // Broadcast job completion to connected clients
-    broadcastJobUpdate(job.user_id, {
-      id: job.id,
-      status: 'completed',
-      processing_time_seconds: processingTime,
-      output_path: outputPath
+    // Send completion notification
+    sendProgress(job.user_id, job.id, 'completed', 100, {
+      processingTime: processingTime,
+      message: 'Transcoding complete!'
     });
 
   } catch (error) {
@@ -756,11 +640,9 @@ async function transcodeVideoAsync(job) {
       completed_at: true
     });
 
-    // Broadcast job failure to connected clients
-    broadcastJobUpdate(job.user_id, {
-      id: job.id,
-      status: 'failed',
-      error_message: error.message
+    // Send failure notification
+    sendProgress(job.user_id, job.id, 'failed', 0, {
+      error: error.message
     });
   } finally {
     // Clean up temporary input file if it was created

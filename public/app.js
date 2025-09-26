@@ -292,45 +292,47 @@ function startSSEUpdates() {
     }
 
     try {
-        // Note: EventSource doesn't support custom headers directly
-        // We'll need to pass the token via URL parameter
-        eventSource = new EventSource(`/transcode/events?token=${encodeURIComponent(authToken)}`);
-        console.log('Starting SSE connection to /transcode/events');
+        // Connect to new simple SSE endpoint with token in URL
+        eventSource = new EventSource(`/transcode/progress?token=${encodeURIComponent(authToken)}`);
+        console.log('🔗 Connecting to SSE progress endpoint');
         
         eventSource.onopen = function() {
             console.log('SSE connection established successfully');
         };
 
         eventSource.onmessage = function(event) {
-            console.log('SSE message received:', event.data);
+            console.log('📨 SSE message:', event.data);
             try {
                 const data = JSON.parse(event.data);
 
-                if (data.type === 'jobUpdate') {
-                    console.log('Job update received:', data.data);
+                if (data.status === 'connected') {
+                    console.log('✅ SSE connection confirmed');
+                    return;
+                }
 
-                    // Handle real-time progress updates
-                    if (data.data.status === 'processing') {
-                        console.log('Processing job update - calling updateJobProgress with:', {
-                            jobId: data.data.id,
-                            progress: data.data.progress
-                        });
-                        // Update progress bar in real-time without full refresh
-                        updateJobProgress(data.data.id, data.data);
-                    } else if (data.data.status === 'completed' || data.data.status === 'failed') {
-                        // For status changes (completed/failed), refresh the jobs list to show download button
-                        setTimeout(() => refreshJobs(), 500); // Small delay to ensure backend is ready
+                if (data.jobId) {
+                    console.log(`📊 Progress update: ${data.progress}% (${data.status})`);
+
+                    // Update progress bar
+                    if (data.status === 'processing') {
+                        updateJobProgressBar(data.jobId, data.progress, data);
                     }
-                    
-                    // Show notifications for job completion/failure
-                    if (data.data.status === 'completed') {
-                        showStatus('jobStatus', `Job ${data.data.id.substring(0, 8)} completed successfully!`, 'success');
-                    } else if (data.data.status === 'failed') {
-                        showStatus('jobStatus', `Job ${data.data.id.substring(0, 8)} failed: ${data.data.error_message}`, 'error');
+
+                    // Handle completion
+                    else if (data.status === 'completed') {
+                        updateJobProgressBar(data.jobId, 100, data);
+                        showStatus('jobStatus', 'Job completed successfully!', 'success');
+                        setTimeout(() => refreshJobs(), 1000);
+                    }
+
+                    // Handle failure
+                    else if (data.status === 'failed') {
+                        showStatus('jobStatus', `Job failed: ${data.error || 'Unknown error'}`, 'error');
+                        setTimeout(() => refreshJobs(), 1000);
                     }
                 }
             } catch (error) {
-                console.error('Error parsing SSE data:', error);
+                console.error('❌ Error parsing SSE data:', error);
             }
         };
         
@@ -815,55 +817,45 @@ async function downloadVideo(jobId, originalFilename) {
     }
 }
 
-// Update progress bar for a specific job
-function updateJobProgress(jobId, progressData) {
-    console.log('updateJobProgress called with:', { jobId, progressData });
+// Simple progress bar update function
+function updateJobProgressBar(jobId, percent, data = {}) {
+    console.log(`🎯 Updating progress bar: ${jobId} -> ${percent}%`);
 
     const jobDiv = document.querySelector(`[data-job-id="${jobId}"]`);
-    console.log('Found job div:', !!jobDiv);
-
     if (!jobDiv) {
-        console.log('No job div found for ID:', jobId);
+        console.log('❌ Job div not found:', jobId);
         return;
     }
 
     const progressBar = jobDiv.querySelector('.progress-bar');
     const progressText = jobDiv.querySelector('.progress-text');
-    const progressDetails = jobDiv.querySelector(`#progress-details-${jobId}`);
 
-    console.log('Progress elements found:', {
-        progressBar: !!progressBar,
-        progressText: !!progressText,
-        progressDetails: !!progressDetails,
-        hasProgressData: !!progressData.progress
-    });
-
-    if (progressBar && progressText && progressData.progress) {
-        const percent = progressData.progress.percent || 0;
-        const timemark = progressData.progress.timemark || '00:00:00';
-        const fps = progressData.progress.fps || 0;
-        const kbps = progressData.progress.currentKbps || 0;
-
-        console.log('Updating progress to:', { percent, timemark, fps, kbps });
-
+    if (progressBar && progressText) {
         // Update progress bar
         progressBar.style.width = `${percent}%`;
         progressText.textContent = `${percent}%`;
 
-        // Update progress details
+        // Update details if available
+        const progressDetails = jobDiv.querySelector(`#progress-details-${jobId}`);
         if (progressDetails) {
-            progressDetails.innerHTML = `
-                ${percent}% complete • ${timemark} • ${fps} fps • ${kbps} kb/s
-            `;
+            let details = `${percent}% complete`;
+            if (data.timemark) details += ` • ${data.timemark}`;
+            if (data.fps) details += ` • ${data.fps} fps`;
+            if (data.kbps) details += ` • ${data.kbps} kb/s`;
+            if (data.message) details += ` • ${data.message}`;
+
+            progressDetails.innerHTML = details;
         }
 
-        // Add visual feedback for completion
+        // Visual feedback for completion
         if (percent >= 100) {
             progressBar.style.background = 'linear-gradient(90deg, #28a745, #20c997)';
-            progressText.textContent = 'Finishing up...';
+            progressText.textContent = 'Complete!';
         }
+
+        console.log(`✅ Progress updated: ${percent}%`);
     } else {
-        console.log('Missing required elements or progress data for job:', jobId);
+        console.log('❌ Progress elements not found for job:', jobId);
     }
 }
 
