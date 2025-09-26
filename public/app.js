@@ -331,19 +331,34 @@ function stopJobUpdates() {
 
 // Video upload functions
 function uploadVideo() {
+    console.log('=== UPLOAD VIDEO DEBUG ===');
+
     const fileInput = document.getElementById('videoFile');
     const file = fileInput.files[0];
     const uploadButton = document.getElementById('uploadButton');
     const progressContainer = document.getElementById('uploadProgress');
     const progressBar = document.getElementById('uploadProgressBar');
     const progressText = document.getElementById('uploadProgressText');
-    
+
+    console.log('File input:', fileInput);
+    console.log('Selected file:', file);
+    console.log('Auth token:', authToken ? 'Present' : 'Missing');
+
     if (!file) {
+        console.log('No file selected');
         showStatus('uploadStatus', 'Please select a video file', 'error');
         return;
     }
-    
+
+    console.log('File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: file.lastModified
+    });
+
     if (!file.type.startsWith('video/')) {
+        console.log('Invalid file type:', file.type);
         showStatus('uploadStatus', 'Please select a valid video file', 'error');
         return;
     }
@@ -381,25 +396,35 @@ function uploadVideo() {
     
     // Handle upload completion
     xhr.addEventListener('load', function() {
+        console.log('Upload completed with status:', xhr.status);
+        console.log('Response text:', xhr.responseText);
+
         // Hide progress bar and re-enable button
         progressContainer.style.display = 'none';
         uploadButton.disabled = false;
         uploadButton.textContent = 'Upload Video';
-        
+
         if (xhr.status === 200) {
+            console.log('Upload successful!');
             try {
                 const data = JSON.parse(xhr.responseText);
+                console.log('Success response data:', data);
                 showStatus('uploadStatus', 'Video uploaded successfully!', 'success');
                 loadVideos(); // Refresh video list
                 fileInput.value = ''; // Clear file input
             } catch (error) {
+                console.error('Response parsing error:', error);
                 showStatus('uploadStatus', 'Upload completed but response parsing failed', 'error');
             }
         } else {
+            console.log('Upload failed with status:', xhr.status);
+            console.log('Response headers:', xhr.getAllResponseHeaders());
             try {
                 const data = JSON.parse(xhr.responseText);
+                console.log('Error response data:', data);
                 showStatus('uploadStatus', data.error || 'Upload failed', 'error');
             } catch (error) {
+                console.error('Error response parsing failed:', error);
                 showStatus('uploadStatus', `Upload failed: ${xhr.status} ${xhr.statusText}`, 'error');
             }
         }
@@ -407,26 +432,35 @@ function uploadVideo() {
     
     // Handle upload errors
     xhr.addEventListener('error', function() {
+        console.error('Upload network error occurred');
         progressContainer.style.display = 'none';
         uploadButton.disabled = false;
         uploadButton.textContent = 'Upload Video';
         showStatus('uploadStatus', 'Upload error: Network error occurred', 'error');
     });
-    
+
     // Handle upload abort
     xhr.addEventListener('abort', function() {
+        console.log('Upload was cancelled');
         progressContainer.style.display = 'none';
         uploadButton.disabled = false;
         uploadButton.textContent = 'Upload Video';
         showStatus('uploadStatus', 'Upload cancelled', 'info');
     });
-    
+
+    console.log('Setting up XMLHttpRequest...');
+
     // Set up request
     xhr.open('POST', '/videos/upload');
     xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
-    
+
+    console.log('Request configured. Starting upload...');
+    console.log('Upload URL: /videos/upload');
+    console.log('Auth header:', authToken ? `Bearer ${authToken.substring(0, 20)}...` : 'None');
+
     // Start upload
     xhr.send(formData);
+    console.log('Upload request sent!');
 }
 
 // Load available videos for transcoding
