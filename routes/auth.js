@@ -9,7 +9,8 @@ const {
   verifySoftwareToken,
   setMFAPreference,
   updateUserPhoneNumber,
-  getUserDetails
+  getUserDetails,
+  exchangeCodeForTokens
 } = require('../utils/cognito');
 const { authenticateToken, requireGroups } = require('../utils/auth');
 
@@ -170,17 +171,37 @@ router.get('/callback', async (req, res) => {
       return res.status(400).json({ error: 'No authorization code received' });
     }
 
-    // For now, return success with code - in full implementation you'd exchange for tokens
+    // Exchange authorization code for tokens
+    const tokenData = await exchangeCodeForTokens(code);
+    console.log('Token exchange successful');
+
+    // Decode the ID token to get user information
+    const idToken = tokenData.id_token;
+    const decodedToken = jwt.decode(idToken);
+
+    console.log('Federated user logged in:', decodedToken.email);
+
+    // Return success response with tokens (similar to regular login)
     res.json({
-      message: 'OAuth callback successful',
-      success: true,
-      authCode: code,
-      instructions: 'Code received successfully. In production, this would be exchanged for JWT tokens.'
+      message: 'Federated login successful',
+      accessToken: tokenData.access_token,
+      idToken: tokenData.id_token,
+      refreshToken: tokenData.refresh_token,
+      user: {
+        sub: decodedToken.sub,
+        email: decodedToken.email,
+        emailVerified: decodedToken.email_verified,
+        name: decodedToken.name,
+        givenName: decodedToken.given_name,
+        familyName: decodedToken.family_name,
+        provider: 'Google',
+        isFederated: true
+      }
     });
 
   } catch (error) {
     console.error('OAuth callback error:', error);
-    res.status(500).json({ error: 'OAuth callback failed' });
+    res.status(500).json({ error: 'OAuth callback failed: ' + error.message });
   }
 });
 

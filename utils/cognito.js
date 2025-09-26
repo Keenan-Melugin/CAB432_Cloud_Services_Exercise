@@ -341,6 +341,34 @@ async function getUserDetails(accessToken) {
   }
 }
 
+// Exchange OAuth authorization code for tokens
+async function exchangeCodeForTokens(authCode) {
+  const axios = require('axios');
+
+  const tokenEndpoint = `${cognitoConfig.hostedUIUrl}/oauth2/token`;
+
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: cognitoConfig.clientId,
+    client_secret: cognitoConfig.clientSecret,
+    code: authCode,
+    redirect_uri: cognitoConfig.redirectUri
+  });
+
+  try {
+    const response = await axios.post(tokenEndpoint, params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Token exchange error:', error.response?.data || error.message);
+    throw new Error('Failed to exchange authorization code for tokens');
+  }
+}
+
 module.exports = {
   cognitoClient,
   cognitoConfig,
@@ -358,5 +386,7 @@ module.exports = {
   setMFAPreference,
   adminSetMFAPreference,
   updateUserPhoneNumber,
-  getUserDetails
+  getUserDetails,
+  // Federated authentication
+  exchangeCodeForTokens
 };
