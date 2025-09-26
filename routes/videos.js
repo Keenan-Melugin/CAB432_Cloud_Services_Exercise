@@ -6,8 +6,122 @@ const { v4: uuidv4 } = require('uuid');
 const database = require('../utils/database-abstraction');
 const { authenticateToken, getUserIdAndRole } = require('../utils/auth');
 const storage = require('../utils/storage');
+const { s3Client, buckets } = require('../utils/aws-config');
+const { createPresignedPost } = require('@aws-sdk/s3-presigned-post');
 
 const router = express.Router();
+
+// POST /videos/presigned-upload - Generate pre-signed URL for direct S3 upload
+router.post('/presigned-upload', authenticateToken, async (req, res) => {
+  try {
+    const { fileName, fileSize, contentType } = req.body;
+
+    if (!fileName || !fileSize || !contentType) {
+      return res.status(400).json({
+        error: 'Missing required fields: fileName, fileSize, contentType'
+      });
+    }
+
+    // Validate file type
+    const isVideo = contentType.startsWith('video/') ||
+                   ['.mp4', '.mov', '.avi', '.mkv', '.webm'].includes(path.extname(fileName).toLowerCase());
+
+    if (!isVideo) {
+      return res.status(400).json({ error: 'Only video files are allowed' });
+    }
+
+    // Check file size limit (100MB)
+    if (fileSize > 100 * 1024 * 1024) {
+      return res.status(400).json({ error: 'File too large. Maximum size is 100MB.' });
+    }
+
+    // Generate unique filename
+    const { userId } = getUserIdAndRole(req.user);
+    const username = req.user.isCognito
+      ? (req.user.email ? req.user.email.split('@')[0] : req.user.sub.substring(0, 8))
+      : (req.user.username || 'user');
+    const safeUsername = username.replace(/[^a-zA-Z0-9]/g, '_');
+    const uniqueKey = `${uuidv4()}-${safeUsername}_${Date.now()}_${fileName}`;
+
+    // Create presigned POST for direct S3 upload
+    const bucket = process.env.STORAGE_PROVIDER === 's3' ? buckets.original : null;
+
+    if (!bucket) {
+      return res.status(500).json({ error: 'S3 storage not configured' });
+    }
+
+    const presignedPost = await createPresignedPost(s3Client, {
+      Bucket: bucket,
+      Key: uniqueKey,
+      Fields: {
+        'Content-Type': contentType,
+      },
+      Conditions: [
+        ['content-length-range', 0, 100 * 1024 * 1024], // Max 100MB
+        ['eq', '$Content-Type', contentType],
+      ],
+      Expires: 3600, // 1 hour to complete upload
+    });
+
+    console.log(`Generated presigned upload URL for ${fileName} by ${username}`);
+
+    res.json({
+      uploadUrl: presignedPost.url,
+      fields: presignedPost.fields,
+      key: uniqueKey,
+      expires: 3600
+    });
+
+  } catch (error) {
+    console.error('Presigned upload URL generation error:', error);
+    res.status(500).json({ error: 'Failed to generate upload URL: ' + error.message });
+  }
+});
+
+// POST /videos/confirm-upload - Confirm successful direct S3 upload
+router.post('/confirm-upload', authenticateToken, async (req, res) => {
+  try {
+    const { key, originalName, fileSize, contentType } = req.body;
+
+    if (!key || !originalName || !fileSize) {
+      return res.status(400).json({
+        error: 'Missing required fields: key, originalName, fileSize'
+      });
+    }
+
+    // Get file size in MB
+    const sizeMB = fileSize / (1024 * 1024);
+
+    // Save video metadata to database
+    const { userId } = getUserIdAndRole(req.user);
+    const video = await database.createVideo({
+      user_id: userId,
+      filename: key.split('_').slice(1).join('_'), // Remove UUID prefix for display
+      original_name: originalName,
+      file_path: `s3://${process.env.STORAGE_PROVIDER === 's3' ? buckets.original : 'local'}/${key}`,
+      size_mb: sizeMB.toFixed(2),
+      format: path.extname(originalName).substring(1),
+      storage_key: key
+    });
+
+    console.log(`Video upload confirmed: ${originalName} (${sizeMB.toFixed(2)}MB) by ${req.user.username || req.user.email} -> ${key}`);
+
+    res.json({
+      message: 'Video upload confirmed successfully',
+      video: {
+        id: video.id,
+        filename: key,
+        originalName: originalName,
+        size: sizeMB.toFixed(2) + ' MB',
+        storageKey: key
+      }
+    });
+
+  } catch (error) {
+    console.error('Upload confirmation error:', error);
+    res.status(500).json({ error: 'Failed to confirm upload: ' + error.message });
+  }
+});
 
 // Configure multer for video uploads - using memory storage for cloud compatibility
 const upload = multer({

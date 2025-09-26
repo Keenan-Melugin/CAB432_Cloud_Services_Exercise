@@ -330,9 +330,7 @@ function stopJobUpdates() {
 }
 
 // Video upload functions
-function uploadVideo() {
-    console.log('=== UPLOAD VIDEO DEBUG ===');
-
+async function uploadVideo() {
     const fileInput = document.getElementById('videoFile');
     const file = fileInput.files[0];
     const uploadButton = document.getElementById('uploadButton');
@@ -340,127 +338,177 @@ function uploadVideo() {
     const progressBar = document.getElementById('uploadProgressBar');
     const progressText = document.getElementById('uploadProgressText');
 
-    console.log('File input:', fileInput);
-    console.log('Selected file:', file);
-    console.log('Auth token:', authToken ? 'Present' : 'Missing');
-
     if (!file) {
-        console.log('No file selected');
         showStatus('uploadStatus', 'Please select a video file', 'error');
         return;
     }
 
-    console.log('File details:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        lastModified: file.lastModified
-    });
-
     if (!file.type.startsWith('video/')) {
-        console.log('Invalid file type:', file.type);
         showStatus('uploadStatus', 'Please select a valid video file', 'error');
         return;
     }
-    
+
     // Show progress bar and disable upload button
     progressContainer.style.display = 'block';
     uploadButton.disabled = true;
     uploadButton.textContent = 'Uploading...';
-    
+
     // Reset progress bar
     progressBar.style.width = '0%';
     progressText.textContent = '0%';
-    
-    const formData = new FormData();
-    formData.append('video', file);
-    
-    showStatus('uploadStatus', 'Uploading video...', 'info');
-    
-    // Use XMLHttpRequest for progress tracking
-    const xhr = new XMLHttpRequest();
-    
-    // Track upload progress
-    xhr.upload.addEventListener('progress', function(e) {
-        if (e.lengthComputable) {
-            const percentComplete = Math.round((e.loaded / e.total) * 100);
-            progressBar.style.width = percentComplete + '%';
-            progressText.textContent = percentComplete + '%';
-            
-            // Show file size info
-            const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
-            const totalMB = (e.total / (1024 * 1024)).toFixed(1);
-            showStatus('uploadStatus', `Uploading... ${uploadedMB}MB / ${totalMB}MB (${percentComplete}%)`, 'info');
-        }
-    });
-    
-    // Handle upload completion
-    xhr.addEventListener('load', function() {
-        console.log('Upload completed with status:', xhr.status);
-        console.log('Response text:', xhr.responseText);
 
+    try {
+        showStatus('uploadStatus', 'Preparing upload...', 'info');
+
+        // First, try to get a presigned upload URL for direct S3 upload
+        const presignedResponse = await fetch('/videos/presigned-upload', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                fileName: file.name,
+                fileSize: file.size,
+                contentType: file.type
+            })
+        });
+
+        if (presignedResponse.ok) {
+            // Use direct S3 upload
+            const presignedData = await presignedResponse.json();
+            await uploadDirectToS3(file, presignedData, progressBar, progressText);
+        } else if (presignedResponse.status === 500 || presignedResponse.status === 404) {
+            // Fallback to traditional upload through API Gateway
+            console.log('Direct S3 upload not available, falling back to traditional upload');
+            showStatus('uploadStatus', 'Using traditional upload method...', 'info');
+            await uploadThroughAPI(file, progressBar, progressText);
+        } else {
+            throw new Error(`Failed to prepare upload: ${presignedResponse.status}`);
+        }
+
+        showStatus('uploadStatus', 'Video uploaded successfully!', 'success');
+        loadVideos(); // Refresh video list
+        fileInput.value = ''; // Clear file input
+
+    } catch (error) {
+        console.error('Upload error:', error);
+        showStatus('uploadStatus', `Upload failed: ${error.message}`, 'error');
+    } finally {
         // Hide progress bar and re-enable button
         progressContainer.style.display = 'none';
         uploadButton.disabled = false;
         uploadButton.textContent = 'Upload Video';
+    }
+}
 
-        if (xhr.status === 200) {
-            console.log('Upload successful!');
-            try {
-                const data = JSON.parse(xhr.responseText);
-                console.log('Success response data:', data);
-                showStatus('uploadStatus', 'Video uploaded successfully!', 'success');
-                loadVideos(); // Refresh video list
-                fileInput.value = ''; // Clear file input
-            } catch (error) {
-                console.error('Response parsing error:', error);
-                showStatus('uploadStatus', 'Upload completed but response parsing failed', 'error');
+async function uploadDirectToS3(file, presignedData, progressBar, progressText) {
+    // Create FormData for S3 upload
+    const formData = new FormData();
+    Object.entries(presignedData.fields).forEach(([key, value]) => {
+        formData.append(key, value);
+    });
+    formData.append('file', file);
+
+    // Upload directly to S3
+    const xhr = new XMLHttpRequest();
+
+    return new Promise((resolve, reject) => {
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percentComplete + '%';
+                progressText.textContent = percentComplete + '%';
+
+                const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                const totalMB = (e.total / (1024 * 1024)).toFixed(1);
+                showStatus('uploadStatus', `Uploading to S3... ${uploadedMB}MB / ${totalMB}MB (${percentComplete}%)`, 'info');
             }
-        } else {
-            console.log('Upload failed with status:', xhr.status);
-            console.log('Response headers:', xhr.getAllResponseHeaders());
-            try {
-                const data = JSON.parse(xhr.responseText);
-                console.log('Error response data:', data);
-                showStatus('uploadStatus', data.error || 'Upload failed', 'error');
-            } catch (error) {
-                console.error('Error response parsing failed:', error);
-                showStatus('uploadStatus', `Upload failed: ${xhr.status} ${xhr.statusText}`, 'error');
+        });
+
+        xhr.addEventListener('load', async function() {
+            if (xhr.status === 204) {
+                // S3 upload successful, now confirm with our API
+                showStatus('uploadStatus', 'Confirming upload...', 'info');
+
+                try {
+                    const confirmResponse = await fetch('/videos/confirm-upload', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            key: presignedData.key,
+                            originalName: file.name,
+                            fileSize: file.size,
+                            contentType: file.type
+                        })
+                    });
+
+                    if (confirmResponse.ok) {
+                        resolve();
+                    } else {
+                        const errorData = await confirmResponse.json();
+                        reject(new Error(errorData.error || 'Failed to confirm upload'));
+                    }
+                } catch (error) {
+                    reject(new Error('Failed to confirm upload: ' + error.message));
+                }
+            } else {
+                reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
             }
-        }
+        });
+
+        xhr.addEventListener('error', function() {
+            reject(new Error('Network error during S3 upload'));
+        });
+
+        xhr.open('POST', presignedData.uploadUrl);
+        xhr.send(formData);
     });
-    
-    // Handle upload errors
-    xhr.addEventListener('error', function() {
-        console.error('Upload network error occurred');
-        progressContainer.style.display = 'none';
-        uploadButton.disabled = false;
-        uploadButton.textContent = 'Upload Video';
-        showStatus('uploadStatus', 'Upload error: Network error occurred', 'error');
+}
+
+async function uploadThroughAPI(file, progressBar, progressText) {
+    const formData = new FormData();
+    formData.append('video', file);
+
+    const xhr = new XMLHttpRequest();
+
+    return new Promise((resolve, reject) => {
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = percentComplete + '%';
+                progressText.textContent = percentComplete + '%';
+
+                const uploadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                const totalMB = (e.total / (1024 * 1024)).toFixed(1);
+                showStatus('uploadStatus', `Uploading... ${uploadedMB}MB / ${totalMB}MB (${percentComplete}%)`, 'info');
+            }
+        });
+
+        xhr.addEventListener('load', function() {
+            if (xhr.status === 200) {
+                resolve();
+            } else {
+                try {
+                    const errorData = JSON.parse(xhr.responseText);
+                    reject(new Error(errorData.error || `Upload failed: ${xhr.status}`));
+                } catch (error) {
+                    reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                }
+            }
+        });
+
+        xhr.addEventListener('error', function() {
+            reject(new Error('Network error during upload'));
+        });
+
+        xhr.open('POST', '/videos/upload');
+        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+        xhr.send(formData);
     });
-
-    // Handle upload abort
-    xhr.addEventListener('abort', function() {
-        console.log('Upload was cancelled');
-        progressContainer.style.display = 'none';
-        uploadButton.disabled = false;
-        uploadButton.textContent = 'Upload Video';
-        showStatus('uploadStatus', 'Upload cancelled', 'info');
-    });
-
-    console.log('Setting up XMLHttpRequest...');
-
-    // Set up request
-    xhr.open('POST', '/videos/upload');
-    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
-
-    console.log('Request configured. Starting upload...');
-    console.log('Upload URL: /videos/upload');
-    console.log('Auth header:', authToken ? `Bearer ${authToken.substring(0, 20)}...` : 'None');
-
-    // Start upload
-    xhr.send(formData);
-    console.log('Upload request sent!');
 }
 
 // Load available videos for transcoding
