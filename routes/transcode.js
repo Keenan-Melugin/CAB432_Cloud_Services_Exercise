@@ -14,16 +14,25 @@ const sseConnections = new Map();
 
 // Function to broadcast job updates to connected clients
 function broadcastJobUpdate(userId, jobUpdate) {
+  console.log(`Attempting to broadcast to user ${userId}, status: ${jobUpdate.status}, progress: ${jobUpdate.progress?.percent || 'N/A'}%`);
+
   const connections = sseConnections.get(userId);
+  console.log(`Found ${connections ? connections.length : 0} connections for user ${userId}`);
+
   if (connections && connections.length > 0) {
     const data = JSON.stringify({ type: 'jobUpdate', data: jobUpdate });
-    connections.forEach(res => {
+    console.log(`Broadcasting SSE data:`, data.substring(0, 100) + '...');
+
+    connections.forEach((res, index) => {
       try {
         res.write(`data: ${data}\n\n`);
+        console.log(`Sent update to connection ${index}`);
       } catch (error) {
-        console.log('Error sending SSE update:', error.message);
+        console.error(`Error sending SSE update to connection ${index}:`, error.message);
       }
     });
+  } else {
+    console.log(`No SSE connections found for user ${userId}`);
   }
 }
 
@@ -299,16 +308,25 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
 
 // GET /transcode/events - Server-Sent Events for real-time job updates
 router.get('/events', (req, res) => {
+  console.log('SSE endpoint accessed, token present:', !!req.query.token);
+
   // Extract token from query parameter since EventSource doesn't support custom headers
   const token = req.query.token;
 
   if (!token) {
     console.error('SSE: No token provided');
-    return res.status(401).json({ error: 'Authentication token required' });
+    // Return text response for EventSource compatibility
+    res.writeHead(401, {
+      'Content-Type': 'text/plain',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.end('Authentication token required');
+    return;
   }
 
   // Add token to authorization header for middleware
   req.headers.authorization = `Bearer ${token}`;
+  console.log('SSE: Token added to headers');
 
   // Use the existing authenticateToken middleware logic
   const { authenticateToken } = require('../utils/auth');
@@ -317,15 +335,31 @@ router.get('/events', (req, res) => {
   const mockNext = (error) => {
     if (error) {
       console.error('SSE authentication failed:', error);
-      return res.status(401).json({ error: 'Authentication failed' });
+      // Return text response for EventSource compatibility
+      res.writeHead(401, {
+        'Content-Type': 'text/plain',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end('Authentication failed: ' + error.message);
+      return;
     }
 
+    console.log('SSE: Authentication successful for user:', req.user.email || req.user.username);
     // Authentication successful, continue with SSE setup
     setupSSEConnection(req, res);
   };
 
   // Call the authenticateToken middleware
-  authenticateToken(req, res, mockNext);
+  try {
+    authenticateToken(req, res, mockNext);
+  } catch (error) {
+    console.error('SSE: Error in authenticateToken:', error);
+    res.writeHead(500, {
+      'Content-Type': 'text/plain',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.end('Internal server error');
+  }
 });
 
 function setupSSEConnection(req, res) {
