@@ -2,6 +2,7 @@
 let authToken = localStorage.getItem('authToken');
 let currentUser = null;
 let eventSource = null;
+let pollingInterval = null;
 
 // Check if user is logged in on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -270,12 +271,26 @@ function showMainApp() {
     startJobUpdates();
 }
 
-// Real-time job updates using Server-Sent Events
+// Real-time job updates with fallback to polling
 function startJobUpdates() {
+    // Try SSE first, but fall back to polling if it fails
+    startSSEUpdates();
+
+    // Also start polling as backup (every 3 seconds)
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+    }
+    pollingInterval = setInterval(() => {
+        refreshJobs(); // Refresh job list every 3 seconds
+    }, 3000);
+}
+
+// Attempt SSE connection
+function startSSEUpdates() {
     if (eventSource) {
         eventSource.close();
     }
-    
+
     try {
         // Note: EventSource doesn't support custom headers directly
         // We'll need to pass the token via URL parameter
@@ -317,15 +332,10 @@ function startJobUpdates() {
             console.error('SSE connection error:', error);
             console.error('SSE readyState:', eventSource.readyState);
 
-            // If connection is closed, attempt to reconnect after 5 seconds
+            // Don't retry SSE aggressively - polling will handle updates
             if (eventSource.readyState === 2) {
-                console.log('SSE connection closed, attempting reconnection in 5 seconds...');
-                setTimeout(() => {
-                    if (!eventSource || eventSource.readyState === 2) {
-                        console.log('Reconnecting SSE...');
-                        startJobUpdates();
-                    }
-                }, 5000);
+                console.log('SSE connection failed - relying on polling for updates');
+                eventSource = null; // Clear failed connection
             }
         };
         
@@ -338,6 +348,10 @@ function stopJobUpdates() {
     if (eventSource) {
         eventSource.close();
         eventSource = null;
+    }
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
     }
 }
 
