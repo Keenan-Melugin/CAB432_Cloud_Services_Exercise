@@ -37,6 +37,13 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ error: 'Access token required' });
   }
 
+  // First check if this looks like a Cognito JWT (has 3 parts)
+  const tokenParts = token.split('.');
+  if (tokenParts.length !== 3) {
+    console.error('Malformed JWT token: expected 3 parts, got', tokenParts.length);
+    return res.status(403).json({ error: 'Malformed token' });
+  }
+
   // Try to verify as Cognito token first
   jwt.verify(token, getKey, {
     issuer: 'https://cognito-idp.ap-southeast-2.amazonaws.com/ap-southeast-2_NxyJMYl5Z',
