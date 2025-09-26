@@ -23,6 +23,11 @@ const cognitoConfig = {
   userPoolId: 'ap-southeast-2_NxyJMYl5Z',
   clientId: '7n4paksk83ssgneufvkvo0m3qa',
   clientSecret: 'j851eik75aqeho124e4ogkl390kuu0i3gper5bgf5ce54tp4ugc',
+  // Federated Identity Configuration
+  hostedUIUrl: 'https://ap-southeast-2nxyjmyl5z.auth.ap-southeast-2.amazoncognito.com',
+  redirectUri: process.env.NODE_ENV === 'production'
+    ? 'https://mytranscoder.cab432.com/auth/callback'
+    : 'http://localhost:3000/auth/callback'
 };
 
 // Calculate SECRET_HASH as required by Cognito when client secret is used

@@ -139,16 +139,48 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET /auth/callback - OAuth callback (for hosted UI integration)
-router.get('/callback', (req, res) => {
-  // This endpoint will handle OAuth callbacks from Cognito hosted UI
-  const { code, state } = req.query;
+// GET /auth/google - Redirect to Google OAuth
+router.get('/google', (req, res) => {
+  const { cognitoConfig } = require('../utils/cognito');
 
-  if (code) {
-    // In a full implementation, you would exchange the code for tokens here
-    res.json({ message: 'OAuth callback received', code, state });
-  } else {
-    res.status(400).json({ error: 'No authorization code received' });
+  const googleAuthUrl = `${cognitoConfig.hostedUIUrl}/oauth2/authorize` +
+    `?identity_provider=Google` +
+    `&redirect_uri=${encodeURIComponent(cognitoConfig.redirectUri)}` +
+    `&response_type=code` +
+    `&client_id=${cognitoConfig.clientId}` +
+    `&scope=email+openid+profile`;
+
+  console.log('Redirecting to Google OAuth:', googleAuthUrl);
+  res.redirect(googleAuthUrl);
+});
+
+// GET /auth/callback - OAuth callback (for hosted UI integration)
+router.get('/callback', async (req, res) => {
+  try {
+    const { code, state, error } = req.query;
+
+    console.log('OAuth callback received:', { code: code ? 'present' : 'missing', error });
+
+    if (error) {
+      console.error('OAuth error:', error);
+      return res.status(400).json({ error: `OAuth error: ${error}` });
+    }
+
+    if (!code) {
+      return res.status(400).json({ error: 'No authorization code received' });
+    }
+
+    // For now, return success with code - in full implementation you'd exchange for tokens
+    res.json({
+      message: 'OAuth callback successful',
+      success: true,
+      authCode: code,
+      instructions: 'Code received successfully. In production, this would be exchanged for JWT tokens.'
+    });
+
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    res.status(500).json({ error: 'OAuth callback failed' });
   }
 });
 

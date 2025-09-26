@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Authentication functions
+// Google OAuth login
+function loginWithGoogle() {
+    // Redirect to Google OAuth endpoint
+    window.location.href = '/auth/google';
+}
+
 async function login() {
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
