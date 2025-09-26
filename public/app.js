@@ -24,6 +24,17 @@ function loginWithGoogle() {
     window.location.href = '/auth/google';
 }
 
+// Show/Hide authentication forms
+function showLogin() {
+    document.getElementById('loginSection').classList.remove('hidden');
+    document.getElementById('signupSection').classList.add('hidden');
+}
+
+function showSignup() {
+    document.getElementById('loginSection').classList.add('hidden');
+    document.getElementById('signupSection').classList.remove('hidden');
+}
+
 async function login() {
     const email = document.getElementById('username').value; // Input field is called username but contains email
     const password = document.getElementById('password').value;
@@ -64,6 +75,62 @@ async function login() {
     } catch (error) {
         showStatus('loginStatus', 'Login error: ' + error.message, 'error');
     }
+}
+
+// User registration function
+async function signup() {
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+
+    // Basic validation
+    if (!email || !password || !confirmPassword) {
+        showStatus('signupStatus', 'Please fill in all fields', 'error');
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        showStatus('signupStatus', 'Passwords do not match', 'error');
+        return;
+    }
+
+    if (password.length < 8) {
+        showStatus('signupStatus', 'Password must be at least 8 characters', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showStatus('signupStatus', 'Account created successfully! Please check your email for a verification code.', 'success');
+            // Clear form
+            document.getElementById('signupEmail').value = '';
+            document.getElementById('signupPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+
+            // Show email confirmation section after 2 seconds
+            setTimeout(() => {
+                showEmailConfirmation(email);
+            }, 2000);
+        } else {
+            showStatus('signupStatus', data.error || 'Registration failed', 'error');
+        }
+    } catch (error) {
+        showStatus('signupStatus', 'Registration error: ' + error.message, 'error');
+    }
+}
+
+// Email confirmation placeholder (will be implemented in Task 4)
+function showEmailConfirmation(email) {
+    console.log('Email confirmation needed for:', email);
+    showStatus('signupStatus', 'Please check your email for a verification code. You can also manually verify using the confirmation endpoint.', 'info');
 }
 
 // Handle MFA challenge (placeholder for future MFA UI implementation)
