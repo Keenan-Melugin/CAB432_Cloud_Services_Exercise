@@ -298,22 +298,82 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
 });
 
 // GET /transcode/events - Server-Sent Events for real-time job updates
-router.get('/events', (req, res) => {
+router.get('/events', async (req, res) => {
   // Extract token from query parameter since EventSource doesn't support custom headers
   const token = req.query.token || req.headers.authorization?.replace('Bearer ', '');
-  
+
   if (!token) {
     return res.status(401).json({ error: 'Authentication token required' });
   }
-  
-  // Verify token manually
+
+  // Use the same token verification logic as authenticateToken middleware
   const jwt = require('jsonwebtoken');
+  const jwksClient = require('jwks-rsa');
   const { JWT_SECRET } = require('../utils/auth');
+
   let user;
+
+  // First check if this looks like a Cognito JWT (has 3 parts)
+  const tokenParts = token.split('.');
+  if (tokenParts.length !== 3) {
+    return res.status(401).json({ error: 'Malformed token' });
+  }
+
+  // Try to verify as Cognito token first
+  const cognitoJwksClient = jwksClient({
+    jwksUri: `https://cognito-idp.${process.env.COGNITO_REGION || 'ap-southeast-2'}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z'}/.well-known/jwks.json`,
+    cache: true,
+    cacheMaxAge: 86400000,
+    rateLimit: true,
+    jwksRequestsPerMinute: 5
+  });
+
+  function getKey(header, callback) {
+    cognitoJwksClient.getSigningKey(header.kid, (err, key) => {
+      if (err) {
+        return callback(err);
+      }
+      if (!key) {
+        return callback(new Error('Unable to find a signing key that matches'));
+      }
+      const signingKey = key.publicKey || key.rsaPublicKey;
+      callback(null, signingKey);
+    });
+  }
+
   try {
-    user = jwt.verify(token, JWT_SECRET);
+    // Try Cognito verification first
+    user = await new Promise((resolve, reject) => {
+      jwt.verify(token, getKey, {
+        issuer: `https://cognito-idp.${process.env.COGNITO_REGION || 'ap-southeast-2'}.amazonaws.com/${process.env.COGNITO_USER_POOL_ID || 'ap-southeast-2_NxyJMYl5Z'}`,
+        algorithms: ['RS256']
+      }, (err, decoded) => {
+        if (!err) {
+          // Cognito token verified successfully
+          resolve({
+            sub: decoded.sub,
+            email: decoded.email || decoded.username,
+            username: decoded['cognito:username'],
+            tokenUse: decoded.token_use,
+            groups: decoded['cognito:groups'] || [],
+            isCognito: true
+          });
+        } else {
+          // Fallback to legacy JWT verification
+          jwt.verify(token, JWT_SECRET, (legacyErr, legacyUser) => {
+            if (legacyErr) {
+              reject(new Error('Invalid or expired token'));
+            } else {
+              legacyUser.isCognito = false;
+              resolve(legacyUser);
+            }
+          });
+        }
+      });
+    });
   } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
+    console.error('SSE token verification failed:', error);
+    return res.status(401).json({ error: 'Invalid or expired token' });
   }
   // Set headers for SSE
   res.writeHead(200, {
@@ -324,14 +384,16 @@ router.get('/events', (req, res) => {
     'Access-Control-Allow-Headers': 'Cache-Control'
   });
 
-  // Store this connection
-  const userId = user.id;
+  // Store this connection using consistent user ID extraction
+  const { getUserIdAndRole } = require('../utils/auth');
+  const { userId } = getUserIdAndRole(user);
   if (!sseConnections.has(userId)) {
     sseConnections.set(userId, []);
   }
   sseConnections.get(userId).push(res);
 
   // Send initial connection message
+  console.log(`SSE connection established for user: ${userId}`);
   res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to job updates' })}\n\n`);
 
   // Clean up on client disconnect
