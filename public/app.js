@@ -316,6 +316,17 @@ function startJobUpdates() {
         eventSource.onerror = function(error) {
             console.error('SSE connection error:', error);
             console.error('SSE readyState:', eventSource.readyState);
+
+            // If connection is closed, attempt to reconnect after 5 seconds
+            if (eventSource.readyState === 2) {
+                console.log('SSE connection closed, attempting reconnection in 5 seconds...');
+                setTimeout(() => {
+                    if (!eventSource || eventSource.readyState === 2) {
+                        console.log('Reconnecting SSE...');
+                        startJobUpdates();
+                    }
+                }, 5000);
+            }
         };
         
     } catch (error) {

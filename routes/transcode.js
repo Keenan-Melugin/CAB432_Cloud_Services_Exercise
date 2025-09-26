@@ -365,14 +365,19 @@ router.get('/events', (req, res) => {
 function setupSSEConnection(req, res) {
   console.log('Setting up SSE connection for user:', req.user.email || req.user.username);
 
-  // Set headers for SSE
+  // Set headers for SSE with better keep-alive settings
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
     'Connection': 'keep-alive',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Cache-Control'
+    'Access-Control-Allow-Headers': 'Cache-Control',
+    'X-Accel-Buffering': 'no', // Disable nginx buffering
+    'Transfer-Encoding': 'chunked'
   });
+
+  // Send initial keep-alive to establish connection
+  res.write(': keep-alive\n\n');
 
   // Store this connection using consistent user ID extraction
   const { getUserIdAndRole } = require('../utils/auth');
@@ -386,8 +391,21 @@ function setupSSEConnection(req, res) {
   console.log(`SSE connection established for user: ${userId}`);
   res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to job updates' })}\n\n`);
 
+  // Set up periodic keep-alive ping every 30 seconds
+  const keepAliveInterval = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n');
+      console.log(`Sent keep-alive ping to user ${userId}`);
+    } catch (error) {
+      console.log(`Keep-alive failed for user ${userId}, cleaning up connection`);
+      clearInterval(keepAliveInterval);
+    }
+  }, 30000);
+
   // Clean up on client disconnect
   req.on('close', () => {
+    console.log(`SSE connection closed for user: ${userId}`);
+    clearInterval(keepAliveInterval);
     const connections = sseConnections.get(userId);
     if (connections) {
       const index = connections.indexOf(res);
