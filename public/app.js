@@ -274,7 +274,7 @@ function showMainApp() {
 // Real-time job updates with fallback to polling
 function startJobUpdates() {
     // Try SSE first, but fall back to polling if it fails
-    startSSEUpdates();
+    startProgressTracking();
 
     // Also start polling as backup (every 3 seconds)
     if (pollingInterval) {
@@ -286,77 +286,54 @@ function startJobUpdates() {
 }
 
 // Attempt SSE connection
-function startSSEUpdates() {
-    if (eventSource) {
-        eventSource.close();
+// Track active jobs for progress updates
+const activeJobs = new Set();
+
+function startProgressTracking() {
+    console.log('🔄 Starting reliable polling-based progress tracking');
+
+    // Poll for progress every 2 seconds
+    if (pollingInterval) {
+        clearInterval(pollingInterval);
     }
 
+    pollingInterval = setInterval(async () => {
+        if (activeJobs.size > 0) {
+            console.log(`📊 Polling progress for ${activeJobs.size} active jobs`);
+
+            for (const jobId of activeJobs) {
+                await checkJobProgress(jobId);
+            }
+        }
+    }, 2000);
+}
+
+async function checkJobProgress(jobId) {
     try {
-        // Connect to new simple SSE endpoint with token in URL
-        eventSource = new EventSource(`/transcode/progress?token=${encodeURIComponent(authToken)}`);
-        console.log('🔗 Connecting to SSE progress endpoint');
-        
-        eventSource.onopen = function() {
-            console.log('SSE connection established successfully');
-        };
+        const response = await fetch(`/transcode/progress/${jobId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
 
-        eventSource.onmessage = function(event) {
-            console.log('📨 SSE message:', event.data);
-            try {
-                const data = JSON.parse(event.data);
+        if (response.ok) {
+            const data = await response.json();
+            console.log(`📈 Progress for ${jobId}: ${data.progress}% (${data.status})`);
 
-                if (data.status === 'connected') {
-                    console.log('✅ SSE connection confirmed');
-                    return;
-                }
+            // Update progress bar
+            updateJobProgressBar(jobId, data.progress, data);
 
-                if (data.jobId) {
-                    console.log(`📊 Progress update: ${data.progress}% (${data.status})`);
-
-                    // Update progress bar
-                    if (data.status === 'processing') {
-                        updateJobProgressBar(data.jobId, data.progress, data);
-                    }
-
-                    // Handle completion
-                    else if (data.status === 'completed') {
-                        updateJobProgressBar(data.jobId, 100, data);
-                        showStatus('jobStatus', 'Job completed successfully!', 'success');
-                        setTimeout(() => refreshJobs(), 1000);
-                    }
-
-                    // Handle failure
-                    else if (data.status === 'failed') {
-                        showStatus('jobStatus', `Job failed: ${data.error || 'Unknown error'}`, 'error');
-                        setTimeout(() => refreshJobs(), 1000);
-                    }
-                }
-            } catch (error) {
-                console.error('❌ Error parsing SSE data:', error);
+            // Handle completion/failure
+            if (data.status === 'completed') {
+                activeJobs.delete(jobId);
+                showStatus('jobStatus', 'Job completed successfully!', 'success');
+                setTimeout(() => refreshJobs(), 1000);
+            } else if (data.status === 'failed') {
+                activeJobs.delete(jobId);
+                showStatus('jobStatus', `Job failed: ${data.error || 'Unknown error'}`, 'error');
+                setTimeout(() => refreshJobs(), 1000);
             }
-        };
-        
-        eventSource.onerror = function(error) {
-            console.error('SSE connection error:', error);
-            console.error('SSE readyState:', eventSource.readyState);
-            console.error('SSE url:', eventSource.url);
-
-            // Log more details about the error
-            if (eventSource.readyState === EventSource.CLOSED) {
-                console.error('SSE connection was closed by server');
-            } else if (eventSource.readyState === EventSource.CONNECTING) {
-                console.error('SSE is still trying to connect');
-            }
-
-            // Don't retry SSE aggressively - polling will handle updates
-            if (eventSource.readyState === 2) {
-                console.log('SSE connection failed - relying on polling for updates');
-                eventSource = null; // Clear failed connection
-            }
-        };
-        
+        }
     } catch (error) {
-        console.error('Error starting SSE connection:', error);
+        console.error(`❌ Error checking progress for ${jobId}:`, error);
     }
 }
 
@@ -701,6 +678,11 @@ async function startTranscoding(jobId) {
         
         if (response.ok) {
             showStatus('jobStatus', 'Transcoding started successfully!', 'success');
+
+            // Add job to tracking and start polling
+            activeJobs.add(jobId);
+            console.log(`📋 Added job ${jobId} to active tracking`);
+
             refreshJobs();
         } else {
             alert('Error starting transcoding: ' + (data.error || 'Unknown error'));

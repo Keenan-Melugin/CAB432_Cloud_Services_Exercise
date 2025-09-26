@@ -9,22 +9,29 @@ const storage = require('../utils/storage');
 
 const router = express.Router();
 
-// Simple SSE progress tracking
-const progressConnections = new Map(); // userId -> response object
+// In-memory progress storage (polling-friendly)
+const jobProgress = new Map(); // jobId -> { status, percent, details, timestamp }
 
-function sendProgress(userId, jobId, status, percent = 0, details = {}) {
-  const connection = progressConnections.get(userId);
-  if (connection) {
-    try {
-      const data = { jobId, status, progress: percent, ...details };
-      connection.write(`data: ${JSON.stringify(data)}\n\n`);
-      console.log(`✓ Sent progress to ${userId}: ${percent}% (${status})`);
-    } catch (error) {
-      console.log(`✗ Connection lost for ${userId}`);
-      progressConnections.delete(userId);
+function updateProgress(jobId, status, percent = 0, details = {}) {
+  jobProgress.set(jobId, {
+    jobId,
+    status,
+    progress: percent,
+    ...details,
+    timestamp: Date.now()
+  });
+  console.log(`📊 Progress stored: ${jobId} -> ${percent}% (${status})`);
+}
+
+// Cleanup old progress entries (older than 1 hour)
+setInterval(() => {
+  const oneHourAgo = Date.now() - 3600000;
+  for (const [jobId, data] of jobProgress.entries()) {
+    if (data.timestamp < oneHourAgo) {
+      jobProgress.delete(jobId);
     }
   }
-}
+}, 300000); // Clean every 5 minutes
 
 // POST /transcode/jobs - Create new transcoding job
 router.post('/jobs', authenticateToken, async (req, res) => {
@@ -296,68 +303,17 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
   }
 });
 
-// GET /transcode/progress - Simple SSE endpoint for progress updates
-router.get('/progress', (req, res) => {
-  // Handle token from URL parameter since EventSource doesn't support headers
-  const token = req.query.token;
-  if (!token) {
-    res.status(401).send('Token required');
-    return;
+// GET /transcode/progress/:jobId - Get progress for specific job (polling)
+router.get('/progress/:jobId', authenticateToken, (req, res) => {
+  const { jobId } = req.params;
+  const progress = jobProgress.get(jobId);
+
+  if (progress) {
+    console.log(`📋 Progress requested for ${jobId}: ${progress.progress}%`);
+    res.json(progress);
+  } else {
+    res.json({ jobId, status: 'unknown', progress: 0, message: 'No progress data' });
   }
-
-  // Add token to headers for auth middleware
-  req.headers.authorization = `Bearer ${token}`;
-
-  const { authenticateToken, getUserIdAndRole } = require('../utils/auth');
-
-  // Authenticate the token
-  authenticateToken(req, res, (error) => {
-    if (error) {
-      console.log(`❌ SSE auth failed: ${error.message}`);
-      res.status(401).send(`Authentication failed: ${error.message}`);
-      return;
-    }
-
-    const { userId } = getUserIdAndRole(req.user);
-    console.log(`📡 SSE connection from: ${userId}`);
-
-    // Set SSE headers with better CORS support
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control',
-      'Access-Control-Allow-Methods': 'GET'
-    });
-
-    // Store connection
-    progressConnections.set(userId, res);
-    console.log(`✅ SSE connected: ${userId}`);
-
-    // Send welcome message
-    try {
-      res.write(`data: {"status":"connected"}\n\n`);
-      console.log(`📤 Welcome message sent to ${userId}`);
-    } catch (err) {
-      console.log(`❌ Failed to send welcome message: ${err.message}`);
-    }
-
-    // Handle connection events
-    req.on('close', () => {
-      progressConnections.delete(userId);
-      console.log(`❌ SSE disconnected: ${userId} (client closed)`);
-    });
-
-    res.on('error', (err) => {
-      progressConnections.delete(userId);
-      console.log(`❌ SSE error for ${userId}: ${err.message}`);
-    });
-
-    res.on('finish', () => {
-      console.log(`🏁 SSE finished for ${userId}`);
-    });
-  });
 });
 
 
@@ -489,8 +445,8 @@ async function transcodeVideoAsync(job) {
         .on('start', (commandLine) => {
           console.log(`FFmpeg command: ${commandLine}`);
           
-          // Send start notification
-          sendProgress(job.user_id, job.id, 'processing', 0, { message: 'Transcoding started...' });
+          // Store start progress
+          updateProgress(job.id, 'processing', 0, { message: 'Transcoding started...' });
         })
         .on('progress', (progress) => {
           const percent = Math.round(progress.percent || 0);
@@ -499,8 +455,8 @@ async function transcodeVideoAsync(job) {
 
           console.log(`Processing: ${percent}% done (${currentTime}, ${currentKbs}kb/s)`);
 
-          // Send real-time progress
-          sendProgress(job.user_id, job.id, 'processing', percent, {
+          // Store real-time progress
+          updateProgress(job.id, 'processing', percent, {
             timemark: currentTime,
             kbps: currentKbs,
             fps: Math.round(progress.currentFps || 0)
@@ -560,9 +516,9 @@ async function transcodeVideoAsync(job) {
             const percent = Math.round(progress.percent || 0);
             console.log(`Concatenating: ${percent}% complete`);
             
-            // Send concatenation progress
+            // Store concatenation progress
             const finalPercent = Math.min(95 + Math.round(percent / 20), 99);
-            sendProgress(job.user_id, job.id, 'processing', finalPercent, {
+            updateProgress(job.id, 'processing', finalPercent, {
               stage: 'finalizing',
               message: `Stitching ${repeatCount} iterations together...`
             });
@@ -646,8 +602,8 @@ async function transcodeVideoAsync(job) {
 
     console.log(`Job ${job.id} completed in ${processingTime} seconds`);
 
-    // Send completion notification
-    sendProgress(job.user_id, job.id, 'completed', 100, {
+    // Store completion
+    updateProgress(job.id, 'completed', 100, {
       processingTime: processingTime,
       message: 'Transcoding complete!'
     });
@@ -662,8 +618,8 @@ async function transcodeVideoAsync(job) {
       completed_at: true
     });
 
-    // Send failure notification
-    sendProgress(job.user_id, job.id, 'failed', 0, {
+    // Store failure
+    updateProgress(job.id, 'failed', 0, {
       error: error.message
     });
   } finally {
