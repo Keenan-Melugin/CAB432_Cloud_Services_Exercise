@@ -377,6 +377,11 @@ async function uploadVideo() {
         if (presignedResponse.ok) {
             // Use direct S3 upload
             const presignedData = await presignedResponse.json();
+            console.log('Presigned data received:', {
+                uploadUrl: presignedData.uploadUrl,
+                key: presignedData.key,
+                fieldsCount: Object.keys(presignedData.fields).length
+            });
             await uploadDirectToS3(file, presignedData, progressBar, progressText);
         } else if (presignedResponse.status === 500 || presignedResponse.status === 404) {
             // Fallback to traditional upload through API Gateway
@@ -427,6 +432,9 @@ async function uploadDirectToS3(file, presignedData, progressBar, progressText) 
         });
 
         xhr.addEventListener('load', async function() {
+            console.log('S3 upload completed with status:', xhr.status);
+            console.log('S3 upload response:', xhr.responseText);
+
             if (xhr.status === 204) {
                 // S3 upload successful, now confirm with our API
                 showStatus('uploadStatus', 'Confirming upload...', 'info');
@@ -456,14 +464,19 @@ async function uploadDirectToS3(file, presignedData, progressBar, progressText) 
                     reject(new Error('Failed to confirm upload: ' + error.message));
                 }
             } else {
+                console.error('S3 upload failed with unexpected status:', xhr.status);
+                console.error('Response headers:', xhr.getAllResponseHeaders());
                 reject(new Error(`S3 upload failed: ${xhr.status} ${xhr.statusText}`));
             }
         });
 
-        xhr.addEventListener('error', function() {
+        xhr.addEventListener('error', function(e) {
+            console.error('XHR error event:', e);
+            console.error('Upload URL was:', presignedData.uploadUrl);
             reject(new Error('Network error during S3 upload'));
         });
 
+        console.log('Starting S3 upload to:', presignedData.uploadUrl);
         xhr.open('POST', presignedData.uploadUrl);
         xhr.send(formData);
     });
