@@ -277,18 +277,17 @@ function startJobUpdates() {
     }
     
     try {
-        eventSource = new EventSource(`/transcode/events`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        
         // Note: EventSource doesn't support custom headers directly
         // We'll need to pass the token via URL parameter
         eventSource = new EventSource(`/transcode/events?token=${encodeURIComponent(authToken)}`);
+        console.log('Starting SSE connection to /transcode/events');
         
         eventSource.onopen = function() {
+            console.log('SSE connection established');
         };
-        
+
         eventSource.onmessage = function(event) {
+            console.log('SSE message received:', event.data);
             try {
                 const data = JSON.parse(event.data);
                 
@@ -315,6 +314,8 @@ function startJobUpdates() {
         };
         
         eventSource.onerror = function(error) {
+            console.error('SSE connection error:', error);
+            console.error('SSE readyState:', eventSource.readyState);
         };
         
     } catch (error) {
@@ -326,6 +327,40 @@ function stopJobUpdates() {
     if (eventSource) {
         eventSource.close();
         eventSource = null;
+    }
+}
+
+function updateJobProgress(jobId, jobData) {
+    const jobElement = document.querySelector(`[data-job-id="${jobId}"]`);
+    if (!jobElement) {
+        console.log('Job element not found for ID:', jobId);
+        return;
+    }
+
+    // Update progress bar
+    const progressBar = jobElement.querySelector('.progress-bar');
+    const progressText = jobElement.querySelector('.progress-text');
+    const progressDetails = jobElement.querySelector('.progress-details');
+
+    if (progressBar && jobData.progress) {
+        progressBar.style.width = jobData.progress + '%';
+    }
+
+    if (progressText && jobData.progress) {
+        progressText.textContent = jobData.progress + '%';
+    }
+
+    if (progressDetails && jobData.processing_details) {
+        progressDetails.textContent = `${jobData.processing_details.current_time || ''} | ${jobData.processing_details.bitrate || ''} | ${jobData.processing_details.speed || ''}`;
+    }
+
+    // Update status
+    if (jobData.status) {
+        const statusElement = jobElement.querySelector('.job-status');
+        if (statusElement) {
+            statusElement.textContent = jobData.status;
+            statusElement.className = `job-status ${jobData.status}`;
+        }
     }
 }
 
@@ -659,6 +694,7 @@ function displayJobs(jobs) {
     jobs.forEach(job => {
         const jobDiv = document.createElement('div');
         jobDiv.className = 'job-item';
+        jobDiv.setAttribute('data-job-id', job.id);
         
         const statusColor = job.status === 'completed' ? '#28a745' :
                            job.status === 'processing' ? '#ffc107' :
@@ -679,7 +715,7 @@ function displayJobs(jobs) {
             <strong>Video:</strong> ${job.original_filename}<br>
             <strong>Target:</strong> ${job.target_resolution} ${job.target_format.toUpperCase()}<br>
             <strong>Quality:</strong> ${job.quality_preset || 'medium'} @ ${job.bitrate || '1000k'}${repeatInfo}<br>
-            <strong>Status:</strong> <span style="color: ${statusColor}">${job.status.toUpperCase()}</span><br>
+            <strong>Status:</strong> <span class="job-status ${job.status}" style="color: ${statusColor}">${job.status.toUpperCase()}</span><br>
             <strong>Created:</strong> ${new Date(job.created_at + ' UTC').toLocaleString('en-AU', { 
                 timeZone: 'Australia/Brisbane',
                 year: 'numeric', 
