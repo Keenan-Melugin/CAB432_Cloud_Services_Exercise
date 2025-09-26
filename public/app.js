@@ -298,7 +298,7 @@ function startSSEUpdates() {
         console.log('Starting SSE connection to /transcode/events');
         
         eventSource.onopen = function() {
-            console.log('SSE connection established');
+            console.log('SSE connection established successfully');
         };
 
         eventSource.onmessage = function(event) {
@@ -337,6 +337,14 @@ function startSSEUpdates() {
         eventSource.onerror = function(error) {
             console.error('SSE connection error:', error);
             console.error('SSE readyState:', eventSource.readyState);
+            console.error('SSE url:', eventSource.url);
+
+            // Log more details about the error
+            if (eventSource.readyState === EventSource.CLOSED) {
+                console.error('SSE connection was closed by server');
+            } else if (eventSource.readyState === EventSource.CONNECTING) {
+                console.error('SSE is still trying to connect');
+            }
 
             // Don't retry SSE aggressively - polling will handle updates
             if (eventSource.readyState === 2) {

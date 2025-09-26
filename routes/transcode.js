@@ -376,20 +376,31 @@ function setupSSEConnection(req, res) {
     'Transfer-Encoding': 'chunked'
   });
 
-  // Send initial keep-alive to establish connection
-  res.write(': keep-alive\n\n');
-
   // Store this connection using consistent user ID extraction
   const { getUserIdAndRole } = require('../utils/auth');
   const { userId } = getUserIdAndRole(req.user);
+
+  console.log(`Setting up SSE for userId: ${userId}`);
+
   if (!sseConnections.has(userId)) {
     sseConnections.set(userId, []);
   }
   sseConnections.get(userId).push(res);
 
-  // Send initial connection message
   console.log(`SSE connection established for user: ${userId}`);
-  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to job updates' })}\n\n`);
+
+  // Send initial messages with error handling
+  try {
+    // Send initial keep-alive to establish connection
+    res.write(': keep-alive\n\n');
+
+    // Send initial connection message
+    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Connected to job updates' })}\n\n`);
+    console.log(`Initial SSE messages sent successfully to user: ${userId}`);
+  } catch (error) {
+    console.error(`Error sending initial SSE messages to user ${userId}:`, error);
+    return;
+  }
 
   // Set up periodic keep-alive ping every 30 seconds
   const keepAliveInterval = setInterval(() => {
@@ -561,23 +572,12 @@ async function transcodeVideoAsync(job) {
             message: 'Transcoding started...'
           });
         })
-        .on('progress', async (progress) => {
+        .on('progress', (progress) => {
           const percent = Math.round(progress.percent || 0);
           const currentTime = progress.timemark || '00:00:00';
           const currentKbs = Math.round(progress.currentKbps || 0);
 
           console.log(`Processing: ${percent}% done (${currentTime}, ${currentKbs}kb/s)`);
-
-          // Update progress in database
-          try {
-            await database.updateTranscodeJob(job.id, {
-              progress_percent: percent,
-              current_time: currentTime,
-              current_kbps: currentKbs
-            });
-          } catch (error) {
-            console.error('Error updating job progress in database:', error);
-          }
 
           // Broadcast real-time progress to connected clients
           broadcastJobUpdate(job.user_id, {
