@@ -561,13 +561,24 @@ async function transcodeVideoAsync(job) {
             message: 'Transcoding started...'
           });
         })
-        .on('progress', (progress) => {
+        .on('progress', async (progress) => {
           const percent = Math.round(progress.percent || 0);
           const currentTime = progress.timemark || '00:00:00';
           const currentKbs = Math.round(progress.currentKbps || 0);
-          
+
           console.log(`Processing: ${percent}% done (${currentTime}, ${currentKbs}kb/s)`);
-          
+
+          // Update progress in database
+          try {
+            await database.updateTranscodeJob(job.id, {
+              progress_percent: percent,
+              current_time: currentTime,
+              current_kbps: currentKbs
+            });
+          } catch (error) {
+            console.error('Error updating job progress in database:', error);
+          }
+
           // Broadcast real-time progress to connected clients
           broadcastJobUpdate(job.user_id, {
             id: job.id,

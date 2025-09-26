@@ -305,10 +305,16 @@ function startSSEUpdates() {
             console.log('SSE message received:', event.data);
             try {
                 const data = JSON.parse(event.data);
-                
+
                 if (data.type === 'jobUpdate') {
+                    console.log('Job update received:', data.data);
+
                     // Handle real-time progress updates
                     if (data.data.status === 'processing') {
+                        console.log('Processing job update - calling updateJobProgress with:', {
+                            jobId: data.data.id,
+                            progress: data.data.progress
+                        });
                         // Update progress bar in real-time without full refresh
                         updateJobProgress(data.data.id, data.data);
                     } else if (data.data.status === 'completed' || data.data.status === 'failed') {
@@ -803,35 +809,53 @@ async function downloadVideo(jobId, originalFilename) {
 
 // Update progress bar for a specific job
 function updateJobProgress(jobId, progressData) {
+    console.log('updateJobProgress called with:', { jobId, progressData });
+
     const jobDiv = document.querySelector(`[data-job-id="${jobId}"]`);
-    if (!jobDiv) return;
-    
+    console.log('Found job div:', !!jobDiv);
+
+    if (!jobDiv) {
+        console.log('No job div found for ID:', jobId);
+        return;
+    }
+
     const progressBar = jobDiv.querySelector('.progress-bar');
     const progressText = jobDiv.querySelector('.progress-text');
     const progressDetails = jobDiv.querySelector(`#progress-details-${jobId}`);
-    
+
+    console.log('Progress elements found:', {
+        progressBar: !!progressBar,
+        progressText: !!progressText,
+        progressDetails: !!progressDetails,
+        hasProgressData: !!progressData.progress
+    });
+
     if (progressBar && progressText && progressData.progress) {
         const percent = progressData.progress.percent || 0;
         const timemark = progressData.progress.timemark || '00:00:00';
         const fps = progressData.progress.fps || 0;
         const kbps = progressData.progress.currentKbps || 0;
-        
+
+        console.log('Updating progress to:', { percent, timemark, fps, kbps });
+
         // Update progress bar
         progressBar.style.width = `${percent}%`;
         progressText.textContent = `${percent}%`;
-        
+
         // Update progress details
         if (progressDetails) {
             progressDetails.innerHTML = `
                 ${percent}% complete • ${timemark} • ${fps} fps • ${kbps} kb/s
             `;
         }
-        
+
         // Add visual feedback for completion
         if (percent >= 100) {
             progressBar.style.background = 'linear-gradient(90deg, #28a745, #20c997)';
             progressText.textContent = 'Finishing up...';
         }
+    } else {
+        console.log('Missing required elements or progress data for job:', jobId);
     }
 }
 
