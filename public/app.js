@@ -138,12 +138,30 @@ async function signup() {
     }
 }
 
-// Show email confirmation form
+// Show email confirmation modal
 function showEmailConfirmation(email) {
-    document.getElementById('loginSection').classList.add('hidden');
-    document.getElementById('signupSection').classList.add('hidden');
-    document.getElementById('confirmationSection').classList.remove('hidden');
     document.getElementById('confirmationEmail').textContent = email;
+    document.getElementById('verificationModal').style.display = 'block';
+    document.getElementById('confirmationCode').value = '';
+    document.getElementById('confirmationCode').focus();
+    clearStatus('confirmationStatus');
+}
+
+// Close verification modal
+function closeVerificationModal() {
+    document.getElementById('verificationModal').style.display = 'none';
+    clearStatus('confirmationStatus');
+}
+
+// Handle input formatting and Enter key
+function formatVerificationCode(input) {
+    input.value = input.value.replace(/[^0-9]/g, '');
+}
+
+function handleVerificationKeypress(event) {
+    if (event.key === 'Enter') {
+        confirmEmail();
+    }
 }
 
 // Handle email confirmation
@@ -156,6 +174,12 @@ async function confirmEmail() {
         return;
     }
 
+    // Show loading state
+    const button = document.querySelector('#verificationModal button');
+    const originalText = button.textContent;
+    button.textContent = '⏳ Verifying...';
+    button.disabled = true;
+
     try {
         const response = await fetch('/auth/confirm', {
             method: 'POST',
@@ -166,19 +190,25 @@ async function confirmEmail() {
         const data = await response.json();
 
         if (response.ok) {
-            showStatus('confirmationStatus', 'Email verified successfully! You can now log in.', 'success');
+            showStatus('confirmationStatus', '✅ Email verified successfully! Redirecting to login...', 'success');
 
-            // Clear the form and redirect to login after 2 seconds
-            document.getElementById('confirmationCode').value = '';
+            // Close modal and redirect to login after 1.5 seconds
             setTimeout(() => {
+                closeVerificationModal();
                 showLogin();
-                showStatus('loginStatus', 'Account verified! Please log in with your credentials.', 'success');
-            }, 2000);
+                showStatus('loginStatus', '🎉 Account verified! Please log in with your credentials.', 'success');
+            }, 1500);
         } else {
-            showStatus('confirmationStatus', data.error || 'Email verification failed', 'error');
+            showStatus('confirmationStatus', '❌ ' + (data.error || 'Email verification failed'), 'error');
+            // Reset button
+            button.textContent = originalText;
+            button.disabled = false;
         }
     } catch (error) {
-        showStatus('confirmationStatus', 'Verification error: ' + error.message, 'error');
+        showStatus('confirmationStatus', '❌ Verification error: ' + error.message, 'error');
+        // Reset button
+        button.textContent = originalText;
+        button.disabled = false;
     }
 }
 
@@ -782,5 +812,18 @@ function showStatus(elementId, message, type) {
         setTimeout(() => {
             element.innerHTML = '';
         }, 3000);
+    }
+}
+
+function clearStatus(elementId) {
+    const element = document.getElementById(elementId);
+    element.innerHTML = '';
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+    const modal = document.getElementById('verificationModal');
+    if (event.target === modal) {
+        closeVerificationModal();
     }
 }
