@@ -138,10 +138,55 @@ async function signup() {
     }
 }
 
-// Email confirmation placeholder (will be implemented in Task 4)
+// Show email confirmation form
 function showEmailConfirmation(email) {
-    console.log('Email confirmation needed for:', email);
-    showStatus('signupStatus', 'Please check your email for a verification code. You can also manually verify using the confirmation endpoint.', 'info');
+    document.getElementById('loginSection').classList.add('hidden');
+    document.getElementById('signupSection').classList.add('hidden');
+    document.getElementById('confirmationSection').classList.remove('hidden');
+    document.getElementById('confirmationEmail').textContent = email;
+}
+
+// Handle email confirmation
+async function confirmEmail() {
+    const email = document.getElementById('confirmationEmail').textContent;
+    const confirmationCode = document.getElementById('confirmationCode').value;
+
+    if (!confirmationCode || confirmationCode.length !== 6) {
+        showStatus('confirmationStatus', 'Please enter the 6-digit verification code', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/auth/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, confirmationCode })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showStatus('confirmationStatus', 'Email verified successfully! You can now log in.', 'success');
+
+            // Clear the form and redirect to login after 2 seconds
+            document.getElementById('confirmationCode').value = '';
+            setTimeout(() => {
+                showLogin();
+                showStatus('loginStatus', 'Account verified! Please log in with your credentials.', 'success');
+            }, 2000);
+        } else {
+            showStatus('confirmationStatus', data.error || 'Email verification failed', 'error');
+        }
+    } catch (error) {
+        showStatus('confirmationStatus', 'Verification error: ' + error.message, 'error');
+    }
+}
+
+// Resend confirmation code (placeholder for future implementation)
+function resendConfirmationCode() {
+    const email = document.getElementById('confirmationEmail').textContent;
+    showStatus('confirmationStatus', 'Resend functionality not implemented yet. Please use the existing code: ' + email, 'info');
+    // TODO: Implement resend confirmation code endpoint
 }
 
 // Handle MFA challenge (placeholder for future MFA UI implementation)

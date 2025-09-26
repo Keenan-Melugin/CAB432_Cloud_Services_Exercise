@@ -204,6 +204,25 @@
         <div id="signupStatus"></div>
     </div>
 
+    <!-- Email Confirmation Section (hidden initially) -->
+    <div class="container hidden" id="confirmationSection">
+        <h2>Verify Your Email</h2>
+        <p>We've sent a verification code to <strong id="confirmationEmail"></strong></p>
+        <p>Please check your email and enter the 6-digit code below:</p>
+
+        <div class="form-group">
+            <label>Verification Code:</label>
+            <input type="text" id="confirmationCode" placeholder="Enter 6-digit code" maxlength="6" required>
+        </div>
+        <button onclick="confirmEmail()">Verify Email</button>
+
+        <div style="margin: 20px 0; text-align: center;">
+            <p><a href="#" onclick="showLogin()">Back to Login</a> | <a href="#" onclick="resendConfirmationCode()">Resend Code</a></p>
+        </div>
+
+        <div id="confirmationStatus"></div>
+    </div>
+
     <!-- Main App (hidden until logged in) -->
     <div id="mainApp" class="hidden">
         
