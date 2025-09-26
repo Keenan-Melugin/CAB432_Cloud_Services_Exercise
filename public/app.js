@@ -726,17 +726,31 @@ function displayJobs(jobs) {
         container.innerHTML = '<p>No transcoding jobs yet.</p>';
         return;
     }
-    
-    jobs.forEach(job => {
+
+    // Sort jobs by creation date (newest first)
+    const sortedJobs = jobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    sortedJobs.forEach(job => {
         const jobDiv = document.createElement('div');
         jobDiv.className = 'job-item';
         jobDiv.setAttribute('data-job-id', job.id);
-        
+
         const statusColor = job.status === 'completed' ? '#28a745' :
                            job.status === 'processing' ? '#ffc107' :
                            job.status === 'failed' ? '#dc3545' : '#6c757d';
+
+        // Set card background colors based on status
+        const backgroundColor = job.status === 'completed' ? '#d4edda' :    // Light green
+                               job.status === 'processing' ? '#fff3cd' :     // Light yellow
+                               job.status === 'failed' ? '#f8d7da' :         // Light red
+                               '#f8f9fa';                                     // Light gray (pending)
+
+        jobDiv.style.backgroundColor = backgroundColor;
+        jobDiv.style.border = `2px solid ${statusColor}`;
+        jobDiv.style.borderRadius = '8px';
         
-        const progressHtml = (job.status === 'processing' || job.status === 'pending') ? `
+        // Only show progress bar when job is actually processing (not pending)
+        const progressHtml = job.status === 'processing' ? `
             <div class="progress-container">
                 <div class="progress-bar" style="width: ${job.progress || 0}%"></div>
                 <div class="progress-text">${job.progress ? job.progress + '%' : 'Initializing...'}</div>
