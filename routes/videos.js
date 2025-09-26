@@ -43,8 +43,12 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
 
     // Generate unique filename
     const { userId } = getUserIdAndRole(req.user);
-    const username = req.user.isCognito ? req.user.email : req.user.username;
-    const uniqueFilename = `${username}_${Date.now()}_${file.originalname}`;
+    // Use email prefix for Cognito users, username for legacy users
+    const username = req.user.isCognito
+      ? (req.user.email ? req.user.email.split('@')[0] : req.user.sub.substring(0, 8))
+      : (req.user.username || 'user');
+    const safeUsername = username.replace(/[^a-zA-Z0-9]/g, '_'); // Make filename safe
+    const uniqueFilename = `${safeUsername}_${Date.now()}_${file.originalname}`;
 
     // Upload file using storage abstraction layer
     const storageResult = await storage.uploadFile(file.buffer, uniqueFilename, {
@@ -79,7 +83,14 @@ router.post('/upload', authenticateToken, upload.single('video'), async (req, re
 
   } catch (error) {
     console.error('Video upload error:', error);
-    
+    console.error('Error stack:', error.stack);
+    console.error('User info:', {
+      isCognito: req.user.isCognito,
+      userId: getUserIdAndRole(req.user).userId,
+      email: req.user.email,
+      username: req.user.username
+    });
+
     if (error.code === 'LIMIT_FILE_SIZE') {
       res.status(400).json({ error: 'File too large. Maximum size is 100MB.' });
     } else {
