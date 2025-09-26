@@ -169,6 +169,8 @@ async function confirmEmail() {
     const email = document.getElementById('confirmationEmail').textContent;
     const confirmationCode = document.getElementById('confirmationCode').value;
 
+    console.log('Confirming email:', email, 'with code:', confirmationCode);
+
     if (!confirmationCode || confirmationCode.length !== 6) {
         showStatus('confirmationStatus', 'Please enter the 6-digit verification code', 'error');
         return;
@@ -176,9 +178,16 @@ async function confirmEmail() {
 
     // Show loading state
     const button = document.querySelector('#verificationModal button');
+    if (!button) {
+        console.error('Verification button not found!');
+        return;
+    }
+
     const originalText = button.textContent;
     button.textContent = '⏳ Verifying...';
     button.disabled = true;
+
+    console.log('Starting verification request...');
 
     try {
         const response = await fetch('/auth/confirm', {
@@ -187,7 +196,9 @@ async function confirmEmail() {
             body: JSON.stringify({ email, confirmationCode })
         });
 
+        console.log('Response status:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
 
         if (response.ok) {
             showStatus('confirmationStatus', '✅ Email verified successfully! Redirecting to login...', 'success');
@@ -199,12 +210,14 @@ async function confirmEmail() {
                 showStatus('loginStatus', '🎉 Account verified! Please log in with your credentials.', 'success');
             }, 1500);
         } else {
+            console.log('Verification failed with error:', data.error);
             showStatus('confirmationStatus', '❌ ' + (data.error || 'Email verification failed'), 'error');
             // Reset button
             button.textContent = originalText;
             button.disabled = false;
         }
     } catch (error) {
+        console.error('Verification request failed:', error);
         showStatus('confirmationStatus', '❌ Verification error: ' + error.message, 'error');
         // Reset button
         button.textContent = originalText;
