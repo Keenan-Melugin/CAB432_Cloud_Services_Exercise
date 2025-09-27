@@ -23,11 +23,10 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 // Serve static files (simple HTML UI)
 app.use(express.static('public'));
 
-// Create minimal necessary directories (only for temp processing)
+// Create minimal necessary directories (S3-only - no uploads directory needed)
 async function initializeDirectories() {
   const directories = [
-    './uploads/temp',  // Only for temporary processing files
-    './public'
+    './public'  // Only public directory for static files
   ];
 
   for (const dir of directories) {
@@ -137,7 +136,7 @@ async function startServer() {
     // Start HTTPS server if SSL certificates are available
     await startHTTPSServer(app);
 
-    console.log('Upload directory: ./uploads/');
+    console.log('Storage: S3 buckets (no local uploads)');
     console.log('Default users: user1/password, admin1/password');
 
   } catch (error) {

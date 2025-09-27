@@ -272,49 +272,23 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Completed job not found' });
     }
 
-    // For S3 storage, use pre-signed URLs
-    if (process.env.STORAGE_PROVIDER === 's3' && job.output_storage_key) {
-      // Generate pre-signed URL for processed video download (valid for 1 hour)
-      const downloadUrl = await storage.getFileUrl(job.output_storage_key, 3600, 'processed');
-
-      const baseFilename = job.original_filename.replace(/\.[^/.]+$/, '');
-      const repeatSuffix = job.repeat_count > 1 ? `_${job.repeat_count}x` : '';
-      const filename = `transcoded_${baseFilename}_${job.target_resolution}${repeatSuffix}.${job.target_format}`;
-
-      return res.json({
-        downloadUrl: downloadUrl,
-        filename: filename,
-        expiresIn: 3600 // seconds
-      });
+    // S3-only: Generate pre-signed URL for processed video download
+    if (!job.output_storage_key) {
+      return res.status(404).json({ error: 'Output file not found in S3' });
     }
 
-    // Fallback to local file serving for local storage
-    if (!job.output_path || !fs.existsSync(job.output_path)) {
-      return res.status(404).json({ error: 'Output file not found' });
-    }
+    // Generate pre-signed URL for processed video download (valid for 1 hour)
+    const downloadUrl = await storage.getFileUrl(job.output_storage_key, 3600, 'processed');
 
-    // Send file for download with correct extension
     const baseFilename = job.original_filename.replace(/\.[^/.]+$/, '');
     const repeatSuffix = job.repeat_count > 1 ? `_${job.repeat_count}x` : '';
     const filename = `transcoded_${baseFilename}_${job.target_resolution}${repeatSuffix}.${job.target_format}`;
 
-    // Set correct content type for WebM files
-    if (job.target_format === 'webm') {
-      res.setHeader('Content-Type', 'video/webm');
-    } else if (job.target_format === 'mp4') {
-      res.setHeader('Content-Type', 'video/mp4');
-    }
-
-    // Sanitize filename for HTTP header (remove/replace invalid characters)
-    const sanitizedFilename = filename
-      .replace(/[^\w\s\-_\.]/g, '_') // Replace invalid chars with underscore
-      .replace(/\s+/g, '_')          // Replace spaces with underscore
-      .replace(/_+/g, '_');          // Collapse multiple underscores
-
-    // Set Content-Disposition header with sanitized filename
-    res.setHeader('Content-Disposition', `attachment; filename="${sanitizedFilename}"`);
-
-    res.download(job.output_path, filename);
+    return res.json({
+      downloadUrl: downloadUrl,
+      filename: filename,
+      expiresIn: 3600 // seconds
+    });
 
   } catch (error) {
     console.error('Error downloading file:', error);
@@ -615,12 +589,7 @@ async function transcodeVideoAsync(job) {
       
       console.log(`Uploaded processed file to cloud: ${outputStorageKey}`);
       
-      // Clean up local file after upload
-      try {
-        await fs.promises.unlink(`uploads/processed/${job.id}.${job.target_format}`);
-      } catch (err) {
-        console.warn(`Warning: Could not clean up local file: ${err.message}`);
-      }
+      // S3-only: No local cleanup needed
     }
 
     // Update job as completed

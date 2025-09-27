@@ -14,7 +14,6 @@ services:
       - S3_ORIGINAL_BUCKET=n10992511-videotranscoder-original
       - S3_PROCESSED_BUCKET=n10992511-videotranscoder-processed
     volumes:
-      - ./uploads:/app/uploads
       - ./data:/app/data
       - /opt/ssl:/opt/ssl:ro
     ports:

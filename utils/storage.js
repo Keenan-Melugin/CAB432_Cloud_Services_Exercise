@@ -1,9 +1,5 @@
-// Storage abstraction layer - Phase 1 implementation
-// This module provides a unified interface for file storage operations
-// Initially implements local file system, easily extensible to S3
-
-const fs = require('fs').promises;
-const path = require('path');
+// Storage abstraction layer - S3-Only implementation
+// This module provides S3-only file storage operations
 const { s3Client, buckets } = require('./aws-config');
 const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
@@ -11,90 +7,36 @@ const { v4: uuidv4 } = require('uuid');
 
 class StorageProvider {
   constructor(config = {}) {
-    this.provider = config.provider || 'local';
+    this.provider = config.provider || 's3'; // Default to S3 instead of local
     this.config = config;
+
+    // Force S3 provider - no local storage support
+    if (this.provider !== 's3') {
+      console.warn(`Storage provider '${this.provider}' not supported. Forcing S3 provider.`);
+      this.provider = 's3';
+    }
   }
 
   async uploadFile(buffer, filename, metadata = {}) {
-    switch (this.provider) {
-      case 'local':
-        return this._uploadLocal(buffer, filename, metadata);
-      case 's3':
-        return this._uploadS3(buffer, filename, metadata);
-      default:
-        throw new Error(`Unsupported storage provider: ${this.provider}`);
-    }
+    // Only S3 uploads are supported
+    return this._uploadS3(buffer, filename, metadata);
   }
 
   async downloadFile(key) {
-    switch (this.provider) {
-      case 'local':
-        return this._downloadLocal(key);
-      case 's3':
-        return this._downloadS3(key);
-      default:
-        throw new Error(`Unsupported storage provider: ${this.provider}`);
-    }
+    // Only S3 downloads are supported
+    return this._downloadS3(key);
   }
 
   async deleteFile(key) {
-    switch (this.provider) {
-      case 'local':
-        return this._deleteLocal(key);
-      case 's3':
-        return this._deleteS3(key);
-      default:
-        throw new Error(`Unsupported storage provider: ${this.provider}`);
-    }
+    // Only S3 deletes are supported
+    return this._deleteS3(key);
   }
 
   async getFileUrl(key, expiresIn = 3600, bucketHint = null) {
-    switch (this.provider) {
-      case 'local':
-        return this._getLocalUrl(key);
-      case 's3':
-        return this._getS3Url(key, expiresIn, bucketHint);
-      default:
-        throw new Error(`Unsupported storage provider: ${this.provider}`);
-    }
+    // Only S3 URLs are supported
+    return this._getS3Url(key, expiresIn, bucketHint);
   }
 
-  // Local file system implementation (current)
-  async _uploadLocal(buffer, filename, metadata) {
-    const category = metadata.category || 'original';
-    const uploadPath = path.join('uploads', category);
-    const fullPath = path.join(uploadPath, filename);
-    
-    await fs.mkdir(uploadPath, { recursive: true });
-    await fs.writeFile(fullPath, buffer);
-    
-    return {
-      key: fullPath,
-      location: fullPath,
-      size: buffer.length
-    };
-  }
-
-  async _downloadLocal(key) {
-    const buffer = await fs.readFile(key);
-    return {
-      buffer,
-      metadata: {
-        size: buffer.length,
-        lastModified: (await fs.stat(key)).mtime
-      }
-    };
-  }
-
-  async _deleteLocal(key) {
-    await fs.unlink(key);
-    return { deleted: true };
-  }
-
-  _getLocalUrl(key) {
-    // Return local file path - in production this would be a proper URL
-    return `file://${path.resolve(key)}`;
-  }
 
   // S3 implementation
   async _uploadS3(buffer, filename, metadata) {
@@ -218,9 +160,9 @@ class StorageProvider {
   }
 }
 
-// Export singleton instance
+// Export singleton instance - S3 only
 const storage = new StorageProvider({
-  provider: process.env.STORAGE_PROVIDER || 'local'
+  provider: 's3' // Always use S3
 });
 
 module.exports = storage;

@@ -108,7 +108,7 @@ router.post('/confirm-upload', authenticateToken, async (req, res) => {
       user_id: userId,
       filename: key.split('_').slice(1).join('_'), // Remove UUID prefix for display
       original_name: originalName,
-      file_path: `s3://${process.env.STORAGE_PROVIDER === 's3' ? buckets.original : 'local'}/${key}`,
+      file_path: `s3://${buckets.original}/${key}`,
       size_mb: sizeMB.toFixed(2),
       format: path.extname(originalName).substring(1),
       storage_key: key
