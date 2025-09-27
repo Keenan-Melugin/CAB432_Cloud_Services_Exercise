@@ -1,12 +1,11 @@
-// Database abstraction layer - switches between PostgreSQL and DynamoDB
-const postgresDB = require('./database');
+// Database abstraction layer - DynamoDB only (PostgreSQL removed)
 const dynamoDB = require('./dynamodb');
 
 class DatabaseAbstraction {
   constructor() {
-    // Choose database provider based on environment variable
-    this.provider = process.env.DATABASE_PROVIDER || 'postgres';
-    this.db = this.provider === 'dynamodb' ? dynamoDB : postgresDB;
+    // Use DynamoDB as the only database provider
+    this.provider = process.env.DATABASE_PROVIDER || 'dynamodb';
+    this.db = dynamoDB;
 
     console.log(`Database provider: ${this.provider}`);
   }
@@ -16,225 +15,84 @@ class DatabaseAbstraction {
     return await this.db.init();
   }
 
-  // Generic methods that route to appropriate database
+  // Generic methods (not used with DynamoDB - throw errors to catch legacy usage)
   async get(query, params = []) {
-    if (this.provider === 'dynamodb') {
-      throw new Error('DynamoDB: Use specific methods instead of generic get()');
-    }
-    return await this.db.get(query, params);
+    throw new Error('DynamoDB: Use specific methods instead of generic get()');
   }
 
   async all(query, params = []) {
-    if (this.provider === 'dynamodb') {
-      throw new Error('DynamoDB: Use specific methods instead of generic all()');
-    }
-    return await this.db.all(query, params);
+    throw new Error('DynamoDB: Use specific methods instead of generic all()');
   }
 
   async run(query, params = []) {
-    if (this.provider === 'dynamodb') {
-      throw new Error('DynamoDB: Use specific methods instead of generic run()');
-    }
-    return await this.db.run(query, params);
+    throw new Error('DynamoDB: Use specific methods instead of generic run()');
   }
 
-  // Application-specific methods (works with both databases)
+  // Application-specific methods
 
   // User operations
   async getUserById(userId) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.getUserById(userId);
-    } else {
-      const result = await this.db.get('SELECT * FROM users WHERE id = ?', [userId]);
-      return result;
-    }
+    return await this.db.getUserById(userId);
   }
 
   async getUserByUsername(username) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.getUserByUsername(username);
-    } else {
-      const result = await this.db.get('SELECT * FROM users WHERE username = ?', [username]);
-      return result;
-    }
+    return await this.db.getUserByUsername(username);
   }
 
-  // Create or get a Cognito user (DynamoDB only)
+  // Create or get a Cognito user
   async createOrGetCognitoUser(cognitoUser) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.createOrGetCognitoUser(cognitoUser);
-    } else {
-      throw new Error('createOrGetCognitoUser is only supported with DynamoDB');
-    }
+    return await this.db.createOrGetCognitoUser(cognitoUser);
   }
 
   // Video operations
   async createVideo(videoData) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.createVideo(videoData);
-    } else {
-      const { user_id, filename, original_name, file_path, size_mb, format, storage_key } = videoData;
-      const videoId = require('uuid').v4();
-
-      await this.db.run(
-        `INSERT INTO videos (id, user_id, filename, original_name, file_path, size_mb, format, storage_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [videoId, user_id, filename, original_name, file_path, size_mb, format, storage_key]
-      );
-
-      return { id: videoId, ...videoData };
-    }
+    return await this.db.createVideo(videoData);
   }
 
   async getVideoById(videoId) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.getVideoById(videoId);
-    } else {
-      return await this.db.get('SELECT * FROM videos WHERE id = ?', [videoId]);
-    }
+    return await this.db.getVideoById(videoId);
   }
 
   async getVideosByUser(userId, userRole) {
-    if (this.provider === 'dynamodb') {
-      if (userRole === 'admin') {
-        return await this.db.getAllVideos();
-      } else {
-        return await this.db.getVideosByUserId(userId);
-      }
+    if (userRole === 'admin') {
+      return await this.db.getAllVideos();
     } else {
-      let query = 'SELECT * FROM videos';
-      let params = [];
-
-      if (userRole !== 'admin') {
-        query += ' WHERE user_id = ?';
-        params = [userId];
-      }
-
-      query += ' ORDER BY uploaded_at DESC';
-      return await this.db.all(query, params);
+      return await this.db.getVideosByUserId(userId);
     }
   }
 
   // Transcode job operations
   async createTranscodeJob(jobData) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.createTranscodeJob(jobData);
-    } else {
-      const { user_id, video_id, original_filename, target_resolution, target_format, quality_preset, bitrate, repeat_count } = jobData;
-      const jobId = require('uuid').v4();
-
-      await this.db.run(
-        `INSERT INTO transcode_jobs (id, user_id, video_id, original_filename, target_resolution, target_format, quality_preset, bitrate, repeat_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [jobId, user_id, video_id, original_filename, target_resolution, target_format, quality_preset, bitrate, repeat_count]
-      );
-
-      return { id: jobId, ...jobData, status: 'pending' };
-    }
+    return await this.db.createTranscodeJob(jobData);
   }
 
   async getTranscodeJobById(jobId) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.getTranscodeJobById(jobId);
-    } else {
-      return await this.db.get('SELECT * FROM transcode_jobs WHERE id = ?', [jobId]);
-    }
+    return await this.db.getTranscodeJobById(jobId);
   }
 
   async getTranscodeJobsByUser(userId, userRole) {
-    if (this.provider === 'dynamodb') {
-      if (userRole === 'admin') {
-        return await this.db.getAllTranscodeJobs();
-      } else {
-        return await this.db.getTranscodeJobsByUserId(userId);
-      }
+    if (userRole === 'admin') {
+      return await this.db.getAllTranscodeJobs();
     } else {
-      let query = 'SELECT * FROM transcode_jobs';
-      let params = [];
-
-      if (userRole !== 'admin') {
-        query += ' WHERE user_id = ?';
-        params = [userId];
-      }
-
-      query += ' ORDER BY created_at DESC';
-      return await this.db.all(query, params);
+      return await this.db.getTranscodeJobsByUserId(userId);
     }
   }
 
   async updateTranscodeJob(jobId, updates) {
-    if (this.provider === 'dynamodb') {
-      return await this.db.updateTranscodeJob(jobId, updates);
-    } else {
-      // Handle PostgreSQL updates
-      const setClause = [];
-      const values = [];
-
-      Object.entries(updates).forEach(([key, value]) => {
-        if (key === 'status') {
-          setClause.push('status = ?');
-          values.push(value);
-        } else if (key === 'output_path') {
-          setClause.push('output_path = ?');
-          values.push(value);
-        } else if (key === 'output_storage_key') {
-          setClause.push('output_storage_key = ?');
-          values.push(value);
-        } else if (key === 'processing_time_seconds') {
-          setClause.push('processing_time_seconds = ?');
-          values.push(value);
-        } else if (key === 'error_message') {
-          setClause.push('error_message = ?');
-          values.push(value);
-        }
-      });
-
-      if (updates.started_at !== undefined) {
-        setClause.push('started_at = CURRENT_TIMESTAMP');
-      }
-
-      if (updates.completed_at !== undefined) {
-        setClause.push('completed_at = CURRENT_TIMESTAMP');
-      }
-
-      values.push(jobId);
-
-      const query = `UPDATE transcode_jobs SET ${setClause.join(', ')} WHERE id = ?`;
-      return await this.db.run(query, values);
-    }
+    return await this.db.updateTranscodeJob(jobId, updates);
   }
 
+  // Combined job with video data (for convenience)
   async getTranscodeJobWithVideo(jobId, userId, userRole) {
-    if (this.provider === 'dynamodb') {
-      const job = await this.db.getTranscodeJobById(jobId);
-      if (!job) return null;
+    const job = await this.getTranscodeJobById(jobId);
+    if (!job) return null;
 
-      // Check permissions
-      if (userRole !== 'admin' && job.user_id !== userId) {
-        return null;
-      }
-
-      // Get associated video data
-      const video = await this.db.getVideoById(job.video_id);
-      if (video) {
-        // Add video fields to job object for compatibility
-        job.file_path = video.file_path;
-        job.original_name = video.original_name;
-        job.storage_key = video.storage_key;
-      }
-
-      return job;
-    } else {
-      let query = 'SELECT tj.*, v.file_path, v.original_name, v.storage_key FROM transcode_jobs tj JOIN videos v ON tj.video_id = v.id WHERE tj.id = ?';
-      let params = [jobId];
-
-      if (userRole !== 'admin') {
-        query += ' AND tj.user_id = ?';
-        params.push(userId);
-      }
-
-      return await this.db.get(query, params);
+    // Check access permissions
+    if (userRole !== 'admin' && job.user_id !== userId) {
+      return null;
     }
+
+    return job;
   }
 }
 
