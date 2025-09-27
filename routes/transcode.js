@@ -9,29 +9,21 @@ const storage = require('../utils/storage');
 
 const router = express.Router();
 
-// In-memory progress storage (polling-friendly)
-const jobProgress = new Map(); // jobId -> { status, percent, details, timestamp }
-
-function updateProgress(jobId, status, percent = 0, details = {}) {
-  jobProgress.set(jobId, {
-    jobId,
-    status,
-    progress: percent,
-    ...details,
-    timestamp: Date.now()
-  });
-  console.log(`📊 Progress stored: ${jobId} -> ${percent}% (${status})`);
+// Progress storage via database (stateless)
+async function updateProgress(jobId, status, percent = 0, details = {}) {
+  try {
+    await database.updateTranscodeJob(jobId, {
+      status: status,
+      progress: percent,
+      ...details
+    });
+    console.log(`📊 Progress stored: ${jobId} -> ${percent}% (${status})`);
+  } catch (error) {
+    console.error(`Failed to update progress for job ${jobId}:`, error);
+  }
 }
 
-// Cleanup old progress entries (older than 1 hour)
-setInterval(() => {
-  const oneHourAgo = Date.now() - 3600000;
-  for (const [jobId, data] of jobProgress.entries()) {
-    if (data.timestamp < oneHourAgo) {
-      jobProgress.delete(jobId);
-    }
-  }
-}, 300000); // Clean every 5 minutes
+// Note: Progress cleanup handled by DynamoDB TTL or manual cleanup process
 
 // POST /transcode/jobs - Create new transcoding job
 router.post('/jobs', authenticateToken, async (req, res) => {
@@ -304,15 +296,30 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
 });
 
 // GET /transcode/progress/:jobId - Get progress for specific job (polling)
-router.get('/progress/:jobId', authenticateToken, (req, res) => {
-  const { jobId } = req.params;
-  const progress = jobProgress.get(jobId);
+router.get('/progress/:jobId', authenticateToken, async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await database.getTranscodeJobById(jobId);
 
-  if (progress) {
-    console.log(`📋 Progress requested for ${jobId}: ${progress.progress}%`);
-    res.json(progress);
-  } else {
-    res.json({ jobId, status: 'unknown', progress: 0, message: 'No progress data' });
+    if (job) {
+      console.log(`📋 Progress requested for ${jobId}: ${job.progress || 0}%`);
+      res.json({
+        jobId,
+        status: job.status,
+        progress: job.progress || 0,
+        message: job.error_message || 'Processing...'
+      });
+    } else {
+      res.json({
+        jobId,
+        status: 'unknown',
+        progress: 0,
+        message: 'Job not found'
+      });
+    }
+  } catch (error) {
+    console.error('Error getting progress:', error);
+    res.status(500).json({ error: 'Failed to get progress' });
   }
 });
 
@@ -446,7 +453,7 @@ async function transcodeVideoAsync(job) {
           console.log(`FFmpeg command: ${commandLine}`);
           
           // Store start progress
-          updateProgress(job.id, 'processing', 0, { message: 'Transcoding started...' });
+          await updateProgress(job.id, 'processing', 0, { message: 'Transcoding started...' });
         })
         .on('progress', (progress) => {
           const percent = Math.round(progress.percent || 0);
@@ -456,7 +463,7 @@ async function transcodeVideoAsync(job) {
           console.log(`Processing: ${percent}% done (${currentTime}, ${currentKbs}kb/s)`);
 
           // Store real-time progress
-          updateProgress(job.id, 'processing', percent, {
+          await updateProgress(job.id, 'processing', percent, {
             timemark: currentTime,
             kbps: currentKbs,
             fps: Math.round(progress.currentFps || 0)
@@ -518,7 +525,7 @@ async function transcodeVideoAsync(job) {
             
             // Store concatenation progress
             const finalPercent = Math.min(95 + Math.round(percent / 20), 99);
-            updateProgress(job.id, 'processing', finalPercent, {
+            await updateProgress(job.id, 'processing', finalPercent, {
               stage: 'finalizing',
               message: `Stitching ${repeatCount} iterations together...`
             });
@@ -603,7 +610,7 @@ async function transcodeVideoAsync(job) {
     console.log(`Job ${job.id} completed in ${processingTime} seconds`);
 
     // Store completion
-    updateProgress(job.id, 'completed', 100, {
+    await updateProgress(job.id, 'completed', 100, {
       processingTime: processingTime,
       message: 'Transcoding complete!'
     });
@@ -619,7 +626,7 @@ async function transcodeVideoAsync(job) {
     });
 
     // Store failure
-    updateProgress(job.id, 'failed', 0, {
+    await updateProgress(job.id, 'failed', 0, {
       error: error.message
     });
   } finally {

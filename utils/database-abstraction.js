@@ -5,7 +5,7 @@ const dynamoDB = require('./dynamodb');
 class DatabaseAbstraction {
   constructor() {
     // Choose database provider based on environment variable
-    this.provider = process.env.DB_PROVIDER || 'postgres';
+    this.provider = process.env.DATABASE_PROVIDER || 'postgres';
     this.db = this.provider === 'dynamodb' ? dynamoDB : postgresDB;
 
     console.log(`Database provider: ${this.provider}`);

@@ -22,16 +22,13 @@ app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 // Serve static files (simple HTML UI)
 app.use(express.static('public'));
 
-// Create necessary directories
+// Create minimal necessary directories (only for temp processing)
 async function initializeDirectories() {
   const directories = [
-    './uploads',
-    './uploads/original',
-    './uploads/processed',
-    './data',
+    './uploads/temp',  // Only for temporary processing files
     './public'
   ];
-  
+
   for (const dir of directories) {
     try {
       await fs.mkdir(dir, { recursive: true });
