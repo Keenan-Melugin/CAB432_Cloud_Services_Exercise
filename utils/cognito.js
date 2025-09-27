@@ -249,9 +249,9 @@ async function respondToMFAChallenge(session, challengeName, challengeResponse, 
     ClientId: config.clientId,
     ChallengeName: challengeName, // 'SMS_MFA', 'SOFTWARE_TOKEN_MFA', or 'EMAIL_MFA'
     Session: session,
-    SecretHash: secretHash,
     ChallengeResponses: {
       USERNAME: username,
+      SECRET_HASH: secretHash,
       [challengeResponseKey]: challengeResponse
     }
   };
