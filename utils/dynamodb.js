@@ -245,7 +245,7 @@ class DynamoDBService {
     const expressionAttributeNames = {};
 
     Object.entries(updates).forEach(([key, value], index) => {
-      if (key === 'status' || key === 'output_path' || key === 'error_message' ||
+      if (key === 'status' || key === 'progress' || key === 'output_path' || key === 'error_message' ||
           key === 'processing_time_seconds' || key === 'output_storage_key') {
         const valueKey = `:val${index}`;
         const nameKey = `#name${index}`;
