@@ -40,3 +40,12 @@ coverage/
 
 # Documents folder
 documents/terraform/.terraform/
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfplan.*
+.terraformrc
+terraform.rc
