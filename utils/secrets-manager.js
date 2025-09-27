@@ -59,7 +59,7 @@ async function getSecret(secretName, forceRefresh = false) {
  * @returns {Promise<Object>} Cognito configuration object
  */
 async function getCognitoSecrets() {
-  const secretName = process.env.COGNITO_SECRETS_NAME || 'cab432/cognito-config';
+  const secretName = process.env.COGNITO_SECRETS_NAME || 'n10992511-cognito-config';
 
   try {
     const secrets = await getSecret(secretName);
