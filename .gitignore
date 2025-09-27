@@ -39,4 +39,4 @@ pids/
 coverage/
 
 # Documents folder
-documents/
+documents/terraform/.terraform/
