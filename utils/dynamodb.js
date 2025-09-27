@@ -250,7 +250,7 @@ class DynamoDBService {
 
     Object.entries(updates).forEach(([key, value], index) => {
       if (key === 'status' || key === 'progress' || key === 'output_path' || key === 'error_message' ||
-          key === 'processing_time_seconds' || key === 'output_storage_key') {
+          key === 'processing_time_seconds' || key === 'output_storage_key' || key === 'message' || key === 'error') {
         const valueKey = `:val${index}`;
         const nameKey = `#name${index}`;
 

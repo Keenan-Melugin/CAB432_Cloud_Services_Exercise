@@ -90,6 +90,8 @@ router.post('/jobs', authenticateToken, async (req, res) => {
       user_id: userId,
       video_id: video_id,
       original_filename: video.original_name,
+      file_path: video.file_path,
+      storage_key: video.storage_key,
       target_resolution: target_resolution,
       target_format: target_format,
       quality_preset: quality_preset,
