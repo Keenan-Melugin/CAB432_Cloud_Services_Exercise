@@ -21,14 +21,15 @@ cd /opt/ssl/
 echo "🔑 Generating private key..."
 openssl genrsa -out private-key.pem 2048
 
-# Generate self-signed certificate
+# Generate self-signed certificate with browser-compatible extensions
 echo "📜 Generating self-signed certificate..."
 openssl req -new -x509 -key private-key.pem \
   -out certificate.pem -days 365 \
   -subj "/C=AU/ST=Queensland/L=Brisbane/O=QUT/OU=CAB432/CN=mytranscoder.cab432.com" \
-  -addext "subjectAltName=DNS:mytranscoder.cab432.com,DNS:localhost" \
-  -addext "keyUsage=keyEncipherment,dataEncipherment" \
-  -addext "extendedKeyUsage=serverAuth"
+  -addext "subjectAltName=DNS:mytranscoder.cab432.com,DNS:localhost,DNS:*.cab432.com" \
+  -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+  -addext "extendedKeyUsage=serverAuth" \
+  -addext "basicConstraints=critical,CA:false"
 
 # Set proper permissions
 echo "🔐 Setting secure permissions..."
