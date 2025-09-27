@@ -449,13 +449,13 @@ async function transcodeVideoAsync(job) {
       }
       
       command
-        .on('start', (commandLine) => {
+        .on('start', async (commandLine) => {
           console.log(`FFmpeg command: ${commandLine}`);
-          
+
           // Store start progress
           await updateProgress(job.id, 'processing', 0, { message: 'Transcoding started...' });
         })
-        .on('progress', (progress) => {
+        .on('progress', async (progress) => {
           const percent = Math.round(progress.percent || 0);
           const currentTime = progress.timemark || '00:00:00';
           const currentKbs = Math.round(progress.currentKbps || 0);
