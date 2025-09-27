@@ -224,7 +224,9 @@ class DynamoDBService {
   }
 
   async getTranscodeJobById(jobId) {
-    return await this.getItem('transcodeJobs', { id: jobId });
+    const job = await this.getItem('transcodeJobs', { id: jobId });
+    console.log(`[DEBUG] Retrieved job ${jobId}:`, job ? `status=${job.status}, progress=${job.progress}` : 'not found');
+    return job;
   }
 
   async getTranscodeJobsByUserId(userId) {
@@ -240,6 +242,8 @@ class DynamoDBService {
   }
 
   async updateTranscodeJob(jobId, updates) {
+    console.log(`[DEBUG] Updating job ${jobId} with:`, updates);
+
     const updateExpressions = [];
     const expressionAttributeValues = {};
     const expressionAttributeNames = {};
@@ -253,6 +257,9 @@ class DynamoDBService {
         updateExpressions.push(`#name${index} = :val${index}`);
         expressionAttributeValues[valueKey] = value;
         expressionAttributeNames[nameKey] = key;
+        console.log(`[DEBUG] Adding update: ${key} = ${value}`);
+      } else {
+        console.log(`[DEBUG] Skipping field: ${key} = ${value}`);
       }
     });
 
