@@ -78,17 +78,22 @@ const cognitoClient = new CognitoIdentityProviderClient({
 // Sign up new user
 async function signUpUser(username, email, password) {
   const config = await getCognitoConfig();
-  const secretHash = calculateSecretHash(username, config.clientId, config.clientSecret);
+  // Cognito is configured to use email as username, but we store the preferred username
+  const secretHash = calculateSecretHash(email, config.clientId, config.clientSecret);
 
   const params = {
     ClientId: config.clientId,
-    Username: username,
+    Username: email, // Cognito requires email as username
     Password: password,
     SecretHash: secretHash,
     UserAttributes: [
       {
         Name: 'email',
         Value: email
+      },
+      {
+        Name: 'preferred_username',
+        Value: username
       }
     ]
   };
@@ -103,13 +108,14 @@ async function signUpUser(username, email, password) {
 }
 
 // Confirm sign up with verification code
-async function confirmSignUp(username, confirmationCode) {
+async function confirmSignUp(usernameOrEmail, confirmationCode) {
   const config = await getCognitoConfig();
-  const secretHash = calculateSecretHash(username, config.clientId, config.clientSecret);
+  // Use email for confirmation since Cognito uses email as username
+  const secretHash = calculateSecretHash(usernameOrEmail, config.clientId, config.clientSecret);
 
   const params = {
     ClientId: config.clientId,
-    Username: username,
+    Username: usernameOrEmail, // This should be the email
     ConfirmationCode: confirmationCode,
     SecretHash: secretHash
   };

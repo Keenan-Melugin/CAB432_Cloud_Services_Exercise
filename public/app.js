@@ -200,7 +200,7 @@ async function confirmEmail() {
         const response = await fetch('/auth/confirm', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: username, confirmationCode })
+            body: JSON.stringify({ email: email, confirmationCode })
         });
 
         console.log('Response status:', response.status);
