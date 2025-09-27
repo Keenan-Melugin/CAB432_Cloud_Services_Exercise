@@ -1,5 +1,48 @@
-# Simplified Outputs for Core Infrastructure
+# Outputs for Video Transcoding Service Terraform Configuration
 # CAB432 Assignment 2 - Infrastructure as Code
+
+# Application URLs
+output "application_url" {
+  description = "Application load balancer URL"
+  value       = "http://${aws_lb.app.dns_name}"
+}
+
+output "domain_url" {
+  description = "Application domain URL"
+  value       = "http://${var.domain_name}"
+}
+
+output "health_check_url" {
+  description = "Health check endpoint"
+  value       = "http://${aws_lb.app.dns_name}/health"
+}
+
+# Load Balancer
+output "load_balancer_arn" {
+  description = "ARN of the application load balancer"
+  value       = aws_lb.app.arn
+}
+
+output "load_balancer_dns_name" {
+  description = "DNS name of the load balancer"
+  value       = aws_lb.app.dns_name
+}
+
+output "load_balancer_zone_id" {
+  description = "Zone ID of the load balancer"
+  value       = aws_lb.app.zone_id
+}
+
+# Auto Scaling Group
+output "autoscaling_group_name" {
+  description = "Name of the Auto Scaling Group"
+  value       = aws_autoscaling_group.app.name
+}
+
+output "autoscaling_group_arn" {
+  description = "ARN of the Auto Scaling Group"
+  value       = aws_autoscaling_group.app.arn
+}
 
 # S3 Buckets
 output "s3_original_bucket_name" {
@@ -97,6 +140,12 @@ output "ecr_repository_arn" {
   value       = aws_ecr_repository.app.arn
 }
 
+# Route53
+output "route53_record_fqdn" {
+  description = "FQDN of the Route53 record"
+  value       = aws_route53_record.app.fqdn
+}
+
 # Secrets Manager
 output "secrets_manager_secret_arn" {
   description = "ARN of the Secrets Manager secret"
@@ -119,6 +168,17 @@ output "cloudwatch_log_group_arn" {
   value       = aws_cloudwatch_log_group.app.arn
 }
 
+# Launch Template
+output "launch_template_id" {
+  description = "ID of the launch template"
+  value       = aws_launch_template.app.id
+}
+
+output "launch_template_latest_version" {
+  description = "Latest version of the launch template"
+  value       = aws_launch_template.app.latest_version
+}
+
 # Parameter Store
 output "parameter_store_keys" {
   description = "Parameter Store configuration keys"
@@ -128,7 +188,8 @@ output "parameter_store_keys" {
     "/videotranscoder/dynamodb/table-prefix",
     "/videotranscoder/cognito/user-pool-id",
     "/videotranscoder/cognito/client-id",
-    "/videotranscoder/ecr/repository-uri"
+    "/videotranscoder/ecr/repository-uri",
+    "/videotranscoder/alb/dns-name"
   ]
 }
 
@@ -170,8 +231,11 @@ output "resource_summary" {
     dynamodb_tables     = 3
     cognito_user_pools  = 1
     ecr_repositories    = 1
+    autoscaling_groups  = 1
+    load_balancers      = 1
+    route53_records     = 1
     secrets             = 1
-    parameter_store_params = 6
+    parameter_store_params = 7
     log_groups          = 1
   }
 }
