@@ -16,8 +16,10 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./data:/app/data
+      - /opt/ssl:/opt/ssl:ro
     ports:
       - "3000:3000"
+      - "443:443"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
