@@ -160,6 +160,30 @@ class DynamoDBService {
     return users.length > 0 ? users[0] : null;
   }
 
+  // Create or get a Cognito user in the database
+  async createOrGetCognitoUser(cognitoUser) {
+    // Check if user already exists
+    const existingUser = await this.getUserById(cognitoUser.sub);
+    if (existingUser) {
+      return existingUser;
+    }
+
+    // Create new user with Cognito information
+    const newUser = {
+      id: cognitoUser.sub,
+      username: cognitoUser.username || cognitoUser.email,
+      email: cognitoUser.email,
+      role: cognitoUser.groups?.includes('admin') ? 'admin' : 'user',
+      created_at: new Date().toISOString(),
+      auth_provider: 'cognito',
+      cognito_groups: cognitoUser.groups || []
+    };
+
+    await this.putItem('users', newUser);
+    console.log(`Created new Cognito user in database: ${newUser.email} (${newUser.id})`);
+    return newUser;
+  }
+
   // Video operations
   async createVideo(videoData) {
     const video = {

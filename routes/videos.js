@@ -35,6 +35,11 @@ router.post('/presigned-upload', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'File too large. Maximum size is 100MB.' });
     }
 
+    // Ensure Cognito user exists in database (for DynamoDB)
+    if (req.user.isCognito) {
+      await database.createOrGetCognitoUser(req.user);
+    }
+
     // Generate unique filename
     const { userId } = getUserIdAndRole(req.user);
     const username = req.user.isCognito
@@ -91,6 +96,11 @@ router.post('/confirm-upload', authenticateToken, async (req, res) => {
 
     // Get file size in MB
     const sizeMB = fileSize / (1024 * 1024);
+
+    // Ensure Cognito user exists in database (for DynamoDB)
+    if (req.user.isCognito) {
+      await database.createOrGetCognitoUser(req.user);
+    }
 
     // Save video metadata to database
     const { userId } = getUserIdAndRole(req.user);

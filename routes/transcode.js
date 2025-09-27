@@ -74,6 +74,11 @@ router.post('/jobs', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Video not found or access denied' });
     }
 
+    // Ensure Cognito user exists in database (for DynamoDB)
+    if (req.user.isCognito) {
+      await database.createOrGetCognitoUser(req.user);
+    }
+
     // Check permissions - regular users can only transcode their own videos
     const { userId, userRole } = getUserIdAndRole(req.user);
     if (userRole !== 'admin' && video.user_id !== userId) {
@@ -118,6 +123,11 @@ router.post('/jobs', authenticateToken, async (req, res) => {
 router.post('/start/:jobId', authenticateToken, async (req, res) => {
   try {
     const { jobId } = req.params;
+
+    // Ensure Cognito user exists in database (for DynamoDB)
+    if (req.user.isCognito) {
+      await database.createOrGetCognitoUser(req.user);
+    }
 
     // Get job details including storage keys
     const { userId, userRole } = getUserIdAndRole(req.user);
@@ -184,6 +194,11 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
 // GET /transcode/jobs - List user's transcoding jobs
 router.get('/jobs', authenticateToken, async (req, res) => {
   try {
+    // Ensure Cognito user exists in database (for DynamoDB)
+    if (req.user.isCognito) {
+      await database.createOrGetCognitoUser(req.user);
+    }
+
     // Use helper function for consistent user ID and role handling
     const { userId, userRole } = getUserIdAndRole(req.user);
     const jobs = await database.getTranscodeJobsByUser(userId, userRole);
@@ -204,6 +219,11 @@ router.get('/jobs', authenticateToken, async (req, res) => {
 // GET /transcode/jobs/:jobId - Get specific job details
 router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
   try {
+    // Ensure Cognito user exists in database (for DynamoDB)
+    if (req.user.isCognito) {
+      await database.createOrGetCognitoUser(req.user);
+    }
+
     const job = await database.getTranscodeJobById(req.params.jobId);
 
     if (!job) {
@@ -227,6 +247,11 @@ router.get('/jobs/:jobId', authenticateToken, async (req, res) => {
 // GET /transcode/download/:jobId - Generate pre-signed URL for processed video download
 router.get('/download/:jobId', authenticateToken, async (req, res) => {
   try {
+    // Ensure Cognito user exists in database (for DynamoDB)
+    if (req.user.isCognito) {
+      await database.createOrGetCognitoUser(req.user);
+    }
+
     const { userId, userRole } = getUserIdAndRole(req.user);
     console.log('[DEBUG] Download request for job:', req.params.jobId, 'by user:', userId);
 

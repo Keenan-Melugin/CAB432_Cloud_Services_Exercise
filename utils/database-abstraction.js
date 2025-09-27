@@ -59,6 +59,15 @@ class DatabaseAbstraction {
     }
   }
 
+  // Create or get a Cognito user (DynamoDB only)
+  async createOrGetCognitoUser(cognitoUser) {
+    if (this.provider === 'dynamodb') {
+      return await this.db.createOrGetCognitoUser(cognitoUser);
+    } else {
+      throw new Error('createOrGetCognitoUser is only supported with DynamoDB');
+    }
+  }
+
   // Video operations
   async createVideo(videoData) {
     if (this.provider === 'dynamodb') {
