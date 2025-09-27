@@ -519,10 +519,10 @@ async function transcodeVideoAsync(job) {
           .on('start', (commandLine) => {
             console.log(`Concatenation FFmpeg command: ${commandLine}`);
           })
-          .on('progress', (progress) => {
+          .on('progress', async (progress) => {
             const percent = Math.round(progress.percent || 0);
             console.log(`Concatenating: ${percent}% complete`);
-            
+
             // Store concatenation progress
             const finalPercent = Math.min(95 + Math.round(percent / 20), 99);
             await updateProgress(job.id, 'processing', finalPercent, {
