@@ -279,8 +279,7 @@ resource "aws_elasticache_replication_group" "redis" {
 
   engine_version               = "6.2"
   at_rest_encryption_enabled   = true
-  transit_encryption_enabled   = true
-  auth_token                   = random_password.redis_auth.result
+  transit_encryption_enabled   = false
 
   automatic_failover_enabled   = var.elasticache_num_nodes > 1
   multi_az_enabled            = var.elasticache_num_nodes > 1
@@ -296,11 +295,6 @@ resource "aws_elasticache_replication_group" "redis" {
   }
 }
 
-# Security - Random password for Redis authentication
-resource "random_password" "redis_auth" {
-  length  = 32
-  special = true
-}
 
 # External Resources (managed outside Terraform)
 # - Secrets Manager: n10992511-cognito-config
