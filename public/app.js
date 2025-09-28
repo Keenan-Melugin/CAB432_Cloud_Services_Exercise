@@ -16,6 +16,13 @@ document.addEventListener('DOMContentLoaded', function() {
         loadVideos();
         loadOriginalVideos();
         refreshJobs();
+
+        // Auto-refresh user role info for Cognito users to get latest groups
+        if (currentUser && currentUser.isCognito) {
+            setTimeout(() => {
+                refreshUserInfoSilently();
+            }, 1000);
+        }
     }
 });
 
@@ -410,6 +417,13 @@ function showMainApp() {
         document.getElementById('adminSection').style.display = 'none';
         document.getElementById('videoAdminControls').style.display = 'none';
         document.getElementById('jobsAdminControls').style.display = 'none';
+    }
+
+    // Automatically refresh user info to get latest role/group data
+    if (authToken && currentUser && currentUser.isCognito) {
+        setTimeout(() => {
+            refreshUserInfoSilently();
+        }, 500);
     }
 
     // Check MFA status when app loads
@@ -1533,7 +1547,30 @@ window.onclick = function(event) {
     }
 }
 
-// Refresh user info to get updated role/group information
+// Silently refresh user info to get updated role/group information
+async function refreshUserInfoSilently() {
+    try {
+        const response = await fetch('/auth/me', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+            const userData = await response.json();
+            console.log('Auto-refreshed user data:', userData);
+
+            // Update current user data
+            currentUser = userData;
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+            // Refresh the UI to show/hide admin features
+            showMainApp();
+        }
+    } catch (error) {
+        console.error('Error auto-refreshing user info:', error);
+    }
+}
+
+// Refresh user info to get updated role/group information (with UI feedback)
 async function refreshUserInfo() {
     try {
         const response = await fetch('/auth/me', {
@@ -1564,27 +1601,6 @@ async function refreshUserInfo() {
     }
 }
 
-// Test admin access
-async function testAdminAccess() {
-    try {
-        const response = await fetch('/auth/admin-test', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            console.log('Admin test result:', data);
-            alert('Admin access: SUCCESS!\n' + JSON.stringify(data, null, 2));
-        } else {
-            const error = await response.json();
-            console.log('Admin test failed:', error);
-            alert('Admin access: DENIED\n' + JSON.stringify(error, null, 2));
-        }
-    } catch (error) {
-        console.error('Admin test error:', error);
-        alert('Admin test error: ' + error.message);
-    }
-}
 
 // Admin toggle functions for hiding/showing content
 function toggleVideosVisibility(show) {
