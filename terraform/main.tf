@@ -273,7 +273,7 @@ resource "aws_elasticache_replication_group" "redis" {
   port                         = 6379
   parameter_group_name         = aws_elasticache_parameter_group.redis.name
   subnet_group_name            = aws_elasticache_subnet_group.main.name
-  security_group_ids           = [var.vpc_security_group_id]
+  security_group_ids           = [var.vpc_security_group_id, var.ec2_security_group_id]
 
   num_cache_clusters           = var.elasticache_num_nodes
 

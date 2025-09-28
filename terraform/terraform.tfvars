@@ -13,6 +13,7 @@ student_number = "n10992511"
 subnet_id             = "subnet-075811427d5564cf9"
 secondary_subnet_id   = "subnet-05a3b8177138c8b14"
 vpc_security_group_id = "sg-078997505ad1c6bbc"
+ec2_security_group_id = "sg-032bd1ff8cf77dbb9"
 
 # ElastiCache Configuration
 elasticache_node_type             = "cache.t3.micro"

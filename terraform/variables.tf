@@ -37,6 +37,12 @@ variable "vpc_security_group_id" {
   default     = "sg-078997505ad1c6bbc"
 }
 
+variable "ec2_security_group_id" {
+  description = "EC2 security group ID for ElastiCache access"
+  type        = string
+  default     = "sg-032bd1ff8cf77dbb9"
+}
+
 # ElastiCache Configuration
 variable "elasticache_node_type" {
   description = "ElastiCache node type"
