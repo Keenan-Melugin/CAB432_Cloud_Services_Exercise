@@ -22,9 +22,9 @@ async function initializeRedis() {
     const localRedisHost = process.env.REDIS_HOST || process.env.REDIS_ENDPOINT;
     const localRedisPort = process.env.REDIS_PORT || 6379;
 
-    if (localRedisHost && !localRedisHost.includes('amazonaws.com')) {
-      // Local Redis configuration (development)
-      console.log('🔧 Connecting to local Redis for development...');
+    if (localRedisHost) {
+      // Redis configuration from environment variables
+      console.log('🔧 Connecting to Redis using environment variables...');
       redisClient = new Redis({
         host: localRedisHost,
         port: parseInt(localRedisPort),
