@@ -430,9 +430,15 @@ function showMainApp() {
 
     // Automatically refresh user info to get latest role/group data
     if (authToken && currentUser && currentUser.isCognito) {
+        console.log('🔄 Scheduling auto-refresh for Cognito user...');
         setTimeout(() => {
             refreshUserInfoSilently();
         }, 500);
+    } else if (authToken && currentUser && !currentUser.role) {
+        console.log('🔄 User missing role field - forcing refresh...');
+        setTimeout(() => {
+            refreshUserInfoSilently();
+        }, 100);
     }
 
     // Check MFA status when app loads
