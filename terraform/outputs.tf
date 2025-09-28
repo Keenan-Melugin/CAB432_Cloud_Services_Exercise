@@ -89,12 +89,12 @@ output "cognito_client_secret" {
 # ECR Repository
 output "ecr_repository_url" {
   description = "URL of the ECR repository"
-  value       = aws_ecr_repository.app.repository_url
+  value       = "901444280953.dkr.ecr.ap-southeast-2.amazonaws.com/n10992511-video-transcoding-service"
 }
 
 output "ecr_repository_arn" {
   description = "ARN of the ECR repository"
-  value       = aws_ecr_repository.app.arn
+  value       = "arn:aws:ecr:ap-southeast-2:901444280953:repository/n10992511-video-transcoding-service"
 }
 
 # ElastiCache

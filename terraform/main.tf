@@ -233,15 +233,8 @@ resource "aws_cognito_user_group" "user" {
   precedence   = 2
 }
 
-# ECR Repository
-resource "aws_ecr_repository" "app" {
-  name                 = "${var.student_number}-video-transcoding-service"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-}
+# ECR Repository exists but cannot be managed due to QUT AWS tagging restrictions
+# Repository URL: 901444280953.dkr.ecr.ap-southeast-2.amazonaws.com/n10992511-video-transcoding-service
 
 # ElastiCache Subnet Group
 resource "aws_elasticache_subnet_group" "main" {
@@ -359,7 +352,7 @@ resource "aws_ssm_parameter" "app_config" {
     "/videotranscoder/dynamodb/table-prefix" = "videotranscoder"
     "/videotranscoder/cognito/user-pool-id"  = aws_cognito_user_pool.main.id
     "/videotranscoder/cognito/client-id"     = aws_cognito_user_pool_client.main.id
-    "/videotranscoder/ecr/repository-uri"    = aws_ecr_repository.app.repository_url
+    "/videotranscoder/ecr/repository-uri"    = "901444280953.dkr.ecr.ap-southeast-2.amazonaws.com/n10992511-video-transcoding-service"
     "/videotranscoder/redis/endpoint"        = aws_elasticache_replication_group.redis.primary_endpoint_address
     "/videotranscoder/redis/port"            = tostring(aws_elasticache_replication_group.redis.port)
   }
