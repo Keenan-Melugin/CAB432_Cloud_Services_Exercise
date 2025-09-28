@@ -43,13 +43,13 @@ async function initializeRedis() {
       } catch (error) {
         console.log('📋 Secrets Manager not available, using Parameter Store...');
         // Fallback to Parameter Store
-        const endpoint = await getParameter('/videotranscoder/redis/endpoint');
-        const port = await getParameter('/videotranscoder/redis/port');
+        const endpoint = await getParameter('redis/endpoint');
+        const port = await getParameter('redis/port');
 
         redisConfig = {
           host: endpoint,
-          port: parseInt(port),
-          tls_enabled: true
+          port: parseInt(port) || 6379,
+          tls_enabled: false
         };
       }
 
