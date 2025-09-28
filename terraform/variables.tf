@@ -34,7 +34,7 @@ variable "subnet_id" {
 variable "secondary_subnet_id" {
   description = "Secondary subnet ID for ALB (must be in different AZ)"
   type        = string
-  default     = "subnet-0123456789abcdef0"  # Update with actual secondary subnet
+  default     = "subnet-05a3b8177138c8b14"  # aws-controltower-PublicSubnet1 (ap-southeast-2a)
 }
 
 variable "key_pair_name" {
