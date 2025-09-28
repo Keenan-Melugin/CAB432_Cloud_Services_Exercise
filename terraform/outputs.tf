@@ -113,52 +113,10 @@ output "elasticache_redis_arn" {
   value       = aws_elasticache_replication_group.redis.arn
 }
 
-# Secrets Manager
-output "secrets_manager_cognito_arn" {
-  description = "ARN of the Cognito Secrets Manager secret"
-  value       = aws_secretsmanager_secret.cognito_config.arn
-}
-
-output "secrets_manager_cognito_name" {
-  description = "Name of the Cognito Secrets Manager secret"
-  value       = aws_secretsmanager_secret.cognito_config.name
-}
-
-output "secrets_manager_redis_arn" {
-  description = "ARN of the Redis Secrets Manager secret"
-  value       = aws_secretsmanager_secret.redis_config.arn
-}
-
-output "secrets_manager_redis_name" {
-  description = "Name of the Redis Secrets Manager secret"
-  value       = aws_secretsmanager_secret.redis_config.name
-}
-
-# CloudWatch
-output "cloudwatch_log_group_name" {
-  description = "Name of the CloudWatch log group"
-  value       = aws_cloudwatch_log_group.app.name
-}
-
-output "cloudwatch_log_group_arn" {
-  description = "ARN of the CloudWatch log group"
-  value       = aws_cloudwatch_log_group.app.arn
-}
-
-# Parameter Store
-output "parameter_store_keys" {
-  description = "Parameter Store configuration keys"
-  value = [
-    "/videotranscoder/s3/original-bucket",
-    "/videotranscoder/s3/processed-bucket",
-    "/videotranscoder/dynamodb/table-prefix",
-    "/videotranscoder/cognito/user-pool-id",
-    "/videotranscoder/cognito/client-id",
-    "/videotranscoder/ecr/repository-uri",
-    "/videotranscoder/redis/endpoint",
-    "/videotranscoder/redis/port"
-  ]
-}
+# Secrets Manager, CloudWatch, and Parameter Store outputs removed
+# These services are restricted by QUT AWS policies
+# Application should use existing Parameter Store values: /n10992511/videotranscoder/dev/...
+# Or use Terraform outputs directly for resource discovery
 
 # Application Configuration for Environment Variables
 output "application_environment_variables" {
@@ -195,16 +153,12 @@ output "deployment_timestamp" {
 
 # Resource Counts for Monitoring
 output "resource_summary" {
-  description = "Summary of created resources"
+  description = "Summary of Terraform-managed resources"
   value = {
     s3_buckets              = 3
     dynamodb_tables         = 3
     cognito_user_pools      = 1
-    ecr_repositories        = 1
     elasticache_clusters    = 1
-    secrets                 = 2
-    parameter_store_params  = 8
-    log_groups              = 1
-    security_groups         = 1
+    # Note: ECR, secrets, logs, and parameter store exist but managed externally due to QUT restrictions
   }
 }

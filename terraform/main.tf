@@ -302,66 +302,11 @@ resource "random_password" "redis_auth" {
   special = true
 }
 
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "app" {
-  name              = "/aws/ec2/videotranscoder"
-  retention_in_days = 7
+# CloudWatch and Secrets Manager resources removed due to QUT AWS restrictions
+# Existing resources in AWS Console:
+# - Secrets Manager: n10992511-cognito-config (managed externally)
+# - CloudWatch: Not accessible with current permissions
 
-  tags = {
-    Name = "VideoTranscoder-Logs"
-  }
-}
-
-# Secrets Manager
-resource "aws_secretsmanager_secret" "cognito_config" {
-  name = "${var.student_number}-cognito-config"
-  description = "Cognito configuration for VideoTranscoder"
-}
-
-resource "aws_secretsmanager_secret_version" "cognito_config" {
-  secret_id = aws_secretsmanager_secret.cognito_config.id
-  secret_string = jsonencode({
-    userPoolId   = aws_cognito_user_pool.main.id
-    clientId     = aws_cognito_user_pool_client.main.id
-    clientSecret = aws_cognito_user_pool_client.main.client_secret
-    region       = var.aws_region
-  })
-}
-
-# ElastiCache Redis configuration in Secrets Manager
-resource "aws_secretsmanager_secret" "redis_config" {
-  name = "${var.student_number}-redis-config"
-  description = "Redis configuration for VideoTranscoder caching"
-}
-
-resource "aws_secretsmanager_secret_version" "redis_config" {
-  secret_id = aws_secretsmanager_secret.redis_config.id
-  secret_string = jsonencode({
-    host        = aws_elasticache_replication_group.redis.primary_endpoint_address
-    port        = aws_elasticache_replication_group.redis.port
-    auth_token  = random_password.redis_auth.result
-    tls_enabled = true
-  })
-}
-
-# Parameter Store Configuration
-resource "aws_ssm_parameter" "app_config" {
-  for_each = {
-    "/videotranscoder/s3/original-bucket"    = aws_s3_bucket.original_videos.id
-    "/videotranscoder/s3/processed-bucket"   = aws_s3_bucket.processed_videos.id
-    "/videotranscoder/dynamodb/table-prefix" = "videotranscoder"
-    "/videotranscoder/cognito/user-pool-id"  = aws_cognito_user_pool.main.id
-    "/videotranscoder/cognito/client-id"     = aws_cognito_user_pool_client.main.id
-    "/videotranscoder/ecr/repository-uri"    = "901444280953.dkr.ecr.ap-southeast-2.amazonaws.com/n10992511-video-transcoding-service"
-    "/videotranscoder/redis/endpoint"        = aws_elasticache_replication_group.redis.primary_endpoint_address
-    "/videotranscoder/redis/port"            = tostring(aws_elasticache_replication_group.redis.port)
-  }
-
-  name  = each.key
-  type  = "String"
-  value = each.value
-
-  tags = {
-    Name = "VideoTranscoder-Config"
-  }
-}
+# Parameter Store Configuration removed due to QUT AWS restrictions
+# Existing parameters in AWS Console use pattern: /n10992511/videotranscoder/dev/...
+# Application should use Terraform outputs or existing Parameter Store values
