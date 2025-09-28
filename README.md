@@ -267,6 +267,32 @@ For technical issues, check the troubleshooting section or review application lo
 # Local development
 npm start
 
-# Docker container  
+# Docker container
 docker logs video-transcoding-service
 ```
+
+## Redis/ElastiCache Troubleshooting
+
+### Quick Redis Test
+```bash
+# Test Redis connectivity
+node test-redis.js
+```
+
+### Common Issues:
+
+**Redis Connection Failed (ETIMEDOUT/ECONNREFUSED)**
+- ElastiCache may be blocked by institutional firewall (common in QUT AWS)
+- Application uses graceful degradation - continues working with mock Redis
+- For local testing: `sudo apt install redis-server && sudo systemctl start redis-server`
+- Set environment: `export REDIS_HOST="127.0.0.1"`
+
+**DNS Resolution Failed (ENOTFOUND)**
+- Check ElastiCache endpoint: `terraform output elasticache_redis_endpoint`
+- Update environment variable with correct endpoint
+
+**Performance Impact Without Redis**
+- Cache operations become no-ops
+- Slightly slower response times (no caching benefits)
+- All core functionality still works
+- Rate limiting disabled

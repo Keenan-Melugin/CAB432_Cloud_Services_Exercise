@@ -18,19 +18,23 @@ const TTL = {
 
 async function initializeRedis() {
   try {
-    // Try to get Redis configuration from environment first (for local development)
+    // Try to get Redis configuration from environment first
     const localRedisHost = process.env.REDIS_HOST || process.env.REDIS_ENDPOINT;
     const localRedisPort = process.env.REDIS_PORT || 6379;
 
     if (localRedisHost) {
       // Redis configuration from environment variables
       console.log('🔧 Connecting to Redis using environment variables...');
+      console.log(`📍 Target: ${localRedisHost}:${localRedisPort}`);
+
       redisClient = new Redis({
         host: localRedisHost,
         port: parseInt(localRedisPort),
         retryDelayOnFailover: 100,
         maxRetriesPerRequest: 3,
-        lazyConnect: true
+        lazyConnect: true,
+        connectTimeout: 10000,
+        commandTimeout: 5000
       });
     } else {
       // AWS ElastiCache configuration (production)
@@ -108,6 +112,18 @@ async function initializeRedis() {
 
   } catch (error) {
     console.error('Failed to initialize Redis:', error.message);
+
+    // Provide specific guidance for common connection issues
+    if (error.message.includes('ENOTFOUND')) {
+      console.log('💡 DNS resolution failed - check endpoint hostname');
+    } else if (error.message.includes('ETIMEDOUT') || error.message.includes('ECONNREFUSED')) {
+      console.log('💡 Connection blocked - likely network/security group issue');
+      console.log('   • For QUT AWS: ElastiCache may be blocked by institutional firewall');
+      console.log('   • Try: export REDIS_HOST="127.0.0.1" for local Redis testing');
+    } else if (error.message.includes('ECONNRESET')) {
+      console.log('💡 Connection reset - check authentication or encryption settings');
+    }
+
     connectionError = error;
 
     // Create a mock client that gracefully degrades
