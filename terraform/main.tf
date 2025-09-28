@@ -273,7 +273,7 @@ resource "aws_elasticache_replication_group" "redis" {
   port                         = 6379
   parameter_group_name         = aws_elasticache_parameter_group.redis.name
   subnet_group_name            = aws_elasticache_subnet_group.main.name
-  security_group_ids           = ["sg-032bd1ff8cf77dbb9"]  # Use existing CAB432SG
+  security_group_ids           = ["sg-078997505ad1c6bbc"]  # Use default VPC security group
 
   num_cache_clusters           = var.elasticache_num_nodes
 
