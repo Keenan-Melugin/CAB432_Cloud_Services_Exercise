@@ -45,7 +45,7 @@ echo
 
 # Safety confirmation
 if [ "$FORCE_DESTROY" != "true" ]; then
-    echo "⚠️  WARNING: This will destroy ALL infrastructure resources!"
+    echo "  WARNING: This will destroy ALL infrastructure resources!"
     echo
     echo "This includes:"
     echo "   - EC2 instances and Auto Scaling Groups"
@@ -59,7 +59,7 @@ if [ "$FORCE_DESTROY" != "true" ]; then
     echo "   - Secrets Manager secrets"
     echo "   - CloudWatch logs"
     echo
-    echo "💾 Data Loss Warning:"
+    echo " Data Loss Warning:"
     echo "   - All video files will be permanently deleted"
     echo "   - All user accounts and data will be lost"
     echo "   - All transcoding job history will be erased"
@@ -213,19 +213,19 @@ if [ $? -eq 0 ]; then
     echo "=========================="
     echo
     echo "All infrastructure resources have been destroyed:"
-    echo "   ✅ EC2 instances terminated"
-    echo "   ✅ Auto Scaling Group deleted"
-    echo "   ✅ Load Balancer removed"
-    echo "   ✅ S3 buckets emptied and deleted"
-    echo "   ✅ DynamoDB tables deleted"
-    echo "   ✅ Cognito User Pool deleted"
-    echo "   ✅ ECR repository deleted"
-    echo "   ✅ Route53 records removed"
-    echo "   ✅ Parameter Store entries deleted"
-    echo "   ✅ Secrets Manager secrets deleted"
-    echo "   ✅ CloudWatch resources cleaned up"
+    echo "   - EC2 instances terminated"
+    echo "   - Auto Scaling Group deleted"
+    echo "   - Load Balancer removed"
+    echo "   - S3 buckets emptied and deleted"
+    echo "   - DynamoDB tables deleted"
+    echo "   - Cognito User Pool deleted"
+    echo "   - ECR repository deleted"
+    echo "   - Route53 records removed"
+    echo "   - Parameter Store entries deleted"
+    echo "   - Secrets Manager secrets deleted"
+    echo "   - CloudWatch resources cleaned up"
     echo
-    echo "💡 Note: QUT-managed resources were preserved:"
+    echo " Note: QUT-managed resources were preserved:"
     echo "   - VPC (vpc-007bab53289655834)"
     echo "   - Security Group (CAB432SG)"
     echo "   - IAM Role (CAB432-Instance-Role)"

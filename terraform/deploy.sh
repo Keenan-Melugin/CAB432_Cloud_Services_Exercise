@@ -162,27 +162,27 @@ if [ $? -eq 0 ]; then
 
     # Display final information
     echo
-    echo "🎉 DEPLOYMENT SUCCESSFUL! 🎉"
+    echo " DEPLOYMENT SUCCESSFUL! "
     echo "=============================="
     echo
     echo "Your Video Transcoding Service is now deployed with Infrastructure as Code!"
     echo
-    echo "📝 Assignment Criteria Satisfied:"
-    echo "   ✅ Infrastructure as Code (3 marks) - Terraform implementation"
-    echo "   ✅ Auto Scaling Group for resilience"
-    echo "   ✅ Application Load Balancer for high availability"
-    echo "   ✅ Fully automated deployment"
+    echo " Assignment Criteria Satisfied:"
+    echo "   - Infrastructure as Code (3 marks) - Terraform implementation"
+    echo "   - Auto Scaling Group for resilience"
+    echo "   - Application Load Balancer for high availability"
+    echo "   - Fully automated deployment"
     echo
-    echo "🌐 Access your application:"
+    echo " Access your application:"
     echo "   - Application: $(terraform output -raw application_url)"
     echo "   - Domain: $(terraform output -raw domain_url)"
     echo "   - Health Check: $(terraform output -raw health_check_url)"
     echo
-    echo "📊 Monitoring:"
+    echo " Monitoring:"
     echo "   - CloudWatch Logs: /aws/ec2/videotranscoder"
     echo "   - Auto Scaling Group: $(terraform output -raw autoscaling_group_name)"
     echo
-    echo "🔧 Next Steps:"
+    echo " Next Steps:"
     echo "   1. Test the application functionality"
     echo "   2. Upload videos and test transcoding"
     echo "   3. Monitor CloudWatch logs and metrics"

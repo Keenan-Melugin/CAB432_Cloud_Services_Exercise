@@ -9,11 +9,11 @@
 
 This Terraform configuration replaces Docker Compose with enterprise-grade Infrastructure as Code, providing:
 
-- ✅ **Automated Infrastructure Deployment**
-- ✅ **Production-Ready Architecture**
-- ✅ **Auto Scaling & Load Balancing**
-- ✅ **Comprehensive Monitoring**
-- ✅ **Security Best Practices**
+- **Automated Infrastructure Deployment**
+- **Production-Ready Architecture**
+- **Auto Scaling & Load Balancing**
+- **Comprehensive Monitoring**
+- **Security Best Practices**
 
 ## Architecture
 
@@ -150,28 +150,28 @@ COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxx
 ## Deployment Process
 
 ### 1. Pre-Deployment
-- ✅ Validate AWS credentials
-- ✅ Build and push Docker image to ECR
-- ✅ Initialize Terraform state
+- Validate AWS credentials
+- Build and push Docker image to ECR
+- Initialize Terraform state
 
 ### 2. Infrastructure Creation
-- ✅ Create S3 buckets with encryption
-- ✅ Create DynamoDB tables with GSIs
-- ✅ Set up Cognito User Pool and groups
-- ✅ Configure Parameter Store entries
-- ✅ Create Secrets Manager secrets
+- - Create S3 buckets with encryption
+- - Create DynamoDB tables with GSIs
+- - Set up Cognito User Pool and groups
+- - Configure Parameter Store entries
+- - Create Secrets Manager secrets
 
 ### 3. Compute Deployment
-- ✅ Create Launch Template with user data
-- ✅ Deploy Auto Scaling Group
-- ✅ Configure Application Load Balancer
-- ✅ Set up Route53 DNS record
+- - Create Launch Template with user data
+- - Deploy Auto Scaling Group
+- - Configure Application Load Balancer
+- - Set up Route53 DNS record
 
 ### 4. Application Startup
-- ✅ EC2 instances auto-configure via user data
-- ✅ Docker containers start automatically
-- ✅ Health checks verify deployment
-- ✅ Monitoring begins logging
+- - EC2 instances auto-configure via user data
+- - Docker containers start automatically
+- - Health checks verify deployment
+- - Monitoring begins logging
 
 ## Advantages over Docker Compose
 
@@ -188,8 +188,7 @@ COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxx
 
 ## Assignment Criteria Satisfaction
 
-### Infrastructure as Code (3 marks) ✅
-
+### Infrastructure as Code (3 marks) 
 **Technology Used:** Terraform
 **Services Deployed:** S3, DynamoDB, Cognito, Route53, EC2, ALB, ASG
 **Evidence:**
@@ -200,11 +199,11 @@ COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxx
 
 **Key Benefits:**
 - 🔄 **Reproducible Infrastructure** - Identical environments every time
-- 📝 **Version Controlled** - Infrastructure changes tracked in Git
-- 🚀 **Automated Deployment** - Single command creates entire stack
-- 🔧 **Environment Management** - Easy dev/staging/prod differentiation
+-  **Version Controlled** - Infrastructure changes tracked in Git
+-  **Automated Deployment** - Single command creates entire stack
+-  **Environment Management** - Easy dev/staging/prod differentiation
 - 💰 **Cost Management** - Predictable resource provisioning
-- 🛡️ **Security** - Consistent security configuration
+-  **Security** - Consistent security configuration
 
 ## Monitoring & Troubleshooting
 
