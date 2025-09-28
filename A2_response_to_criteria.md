@@ -117,7 +117,7 @@ Overview
 ### Cognito federated identities
 
 - **Identity providers used:** Google OAuth,  this is partically implemented, continuous frontend issues
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 02:10
 - **Relevant files:**
     - routes/auth.js (Google OAuth endpoints)
     - utils/cognito.js
@@ -125,7 +125,7 @@ Overview
 ### Cognito groups
 
 - **How are groups used to set permissions?:** 'admin' group members can view all users' data and access system statistics
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 02:35
 - **Relevant files:**
     - utils/auth.js (requireGroups middleware)
     - utils/database-abstraction.js
@@ -133,20 +133,20 @@ Overview
 
 ### Core - DNS with Route53
 
-- **Subdomain:** [Your subdomain].cab432.com
-- **Video timestamp:** [Your timestamp]
+- **Subdomain:** Https://mytranscoder.cab432.com
+- **Video timestamp:** 00:00
 
 ### Parameter store
 
 - **Parameter names:** /videotranscoder/config/dynamodb-table-prefix, /videotranscoder/config/s3-buckets
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 02:55
 - **Relevant files:**
     - utils/parameter-store.js
 
 ### Secrets manager
 
 - **Secrets names:** videotranscoder-cognito-secrets
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 03:30
 - **Relevant files:**
     - utils/parameter-store.js
 
@@ -154,7 +154,7 @@ Overview
 
 - **Technology used:** Terraform
 - **Services deployed:** EC2, Auto Scaling, Load Balancer, S3, DynamoDB, Cognito, Route53, ElastiCache
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 00:00
 - **Relevant files:**
     - terraform/main.tf
     - terraform/deploy.sh
