@@ -367,6 +367,11 @@ function logout() {
     authToken = null;
     currentUser = null;
     localStorage.removeItem('authToken');
+    localStorage.removeItem('currentUser');
+
+    // Reset admin state
+    document.body.classList.remove('admin-mode');
+
     document.getElementById('loginSection').style.display = 'block';
     document.getElementById('mainApp').classList.add('hidden');
     showStatus('loginStatus', 'Logged out successfully', 'info');
@@ -384,9 +389,27 @@ function showMainApp() {
         roleElement.className = `user-role ${currentUser.role}`;
     }
 
-    // Show admin section for admin users
+    // Show admin-specific features for admin users
     if (currentUser && currentUser.role === 'admin') {
+        // Add admin background
+        document.body.classList.add('admin-mode');
+
+        // Show admin banner
+        document.getElementById('adminBanner').style.display = 'block';
+
+        // Show admin section (system stats)
         document.getElementById('adminSection').style.display = 'block';
+
+        // Show admin controls for videos and jobs
+        document.getElementById('videoAdminControls').style.display = 'block';
+        document.getElementById('jobsAdminControls').style.display = 'block';
+    } else {
+        // Remove admin features for regular users
+        document.body.classList.remove('admin-mode');
+        document.getElementById('adminBanner').style.display = 'none';
+        document.getElementById('adminSection').style.display = 'none';
+        document.getElementById('videoAdminControls').style.display = 'none';
+        document.getElementById('jobsAdminControls').style.display = 'none';
     }
 
     // Check MFA status when app loads
@@ -1507,5 +1530,38 @@ window.onclick = function(event) {
     const modal = document.getElementById('verificationModal');
     if (event.target === modal) {
         closeVerificationModal();
+    }
+}
+
+// Admin toggle functions for hiding/showing content
+function toggleVideosVisibility(show) {
+    const videosList = document.getElementById('originalVideosList');
+    const showBtn = document.getElementById('showVideosBtn');
+    const hideBtn = document.getElementById('hideVideosBtn');
+
+    if (show) {
+        videosList.style.display = 'block';
+        showBtn.classList.add('active');
+        hideBtn.classList.remove('active');
+    } else {
+        videosList.style.display = 'none';
+        showBtn.classList.remove('active');
+        hideBtn.classList.add('active');
+    }
+}
+
+function toggleJobsVisibility(show) {
+    const jobsList = document.getElementById('jobsList');
+    const showBtn = document.getElementById('showJobsBtn');
+    const hideBtn = document.getElementById('hideJobsBtn');
+
+    if (show) {
+        jobsList.style.display = 'block';
+        showBtn.classList.add('active');
+        hideBtn.classList.remove('active');
+    } else {
+        jobsList.style.display = 'none';
+        showBtn.classList.remove('active');
+        hideBtn.classList.add('active');
     }
 }
