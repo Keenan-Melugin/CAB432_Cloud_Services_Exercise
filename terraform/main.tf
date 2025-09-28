@@ -255,7 +255,7 @@ resource "aws_elasticache_subnet_group" "main" {
 
 # ElastiCache Parameter Group for Redis
 resource "aws_elasticache_parameter_group" "redis" {
-  family = "redis7.x"
+  family = "redis6.x"
   name   = "${var.student_number}-videotranscoder-redis"
 
   parameter {
@@ -284,7 +284,7 @@ resource "aws_elasticache_replication_group" "redis" {
 
   num_cache_clusters           = var.elasticache_num_nodes
 
-  engine_version               = "7.0"
+  engine_version               = "6.2"
   at_rest_encryption_enabled   = true
   transit_encryption_enabled   = true
   auth_token                   = random_password.redis_auth.result
