@@ -397,7 +397,14 @@ function showMainApp() {
     }
 
     // Show admin-specific features for admin users
+    console.log('🎯 showMainApp - Checking admin role...');
+    console.log('🎯 currentUser:', currentUser);
+    console.log('🎯 currentUser.role:', currentUser?.role);
+    console.log('🎯 Is admin?', currentUser && currentUser.role === 'admin');
+
     if (currentUser && currentUser.role === 'admin') {
+        console.log('🔥 ADMIN MODE ACTIVATED!');
+
         // Add admin background
         document.body.classList.add('admin-mode');
 
@@ -411,6 +418,8 @@ function showMainApp() {
         document.getElementById('videoAdminControls').style.display = 'block';
         document.getElementById('jobsAdminControls').style.display = 'block';
     } else {
+        console.log('👤 Regular user mode');
+
         // Remove admin features for regular users
         document.body.classList.remove('admin-mode');
         document.getElementById('adminBanner').style.display = 'none';
@@ -1550,23 +1559,38 @@ window.onclick = function(event) {
 // Silently refresh user info to get updated role/group information
 async function refreshUserInfoSilently() {
     try {
+        console.log('🔄 Auto-refreshing user info...');
+        console.log('Current user before refresh:', currentUser);
+
         const response = await fetch('/auth/me', {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
 
         if (response.ok) {
             const userData = await response.json();
-            console.log('Auto-refreshed user data:', userData);
+            console.log('🔄 Auto-refreshed user data:', userData);
+            console.log('🔄 Role detected:', userData.role);
+            console.log('🔄 Groups detected:', userData.groups);
 
-            // Update current user data
+            // Only update if we got different data
+            const oldRole = currentUser?.role;
             currentUser = userData;
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
             // Refresh the UI to show/hide admin features
-            showMainApp();
+            if (oldRole !== userData.role) {
+                console.log(`🔄 Role changed from "${oldRole}" to "${userData.role}" - refreshing UI`);
+                showMainApp();
+            } else {
+                console.log('🔄 No role change detected');
+                // Still refresh UI to ensure admin features are properly set
+                showMainApp();
+            }
+        } else {
+            console.error('🔄 Failed to refresh user info:', response.status);
         }
     } catch (error) {
-        console.error('Error auto-refreshing user info:', error);
+        console.error('🔄 Error auto-refreshing user info:', error);
     }
 }
 
