@@ -129,7 +129,7 @@ STUDENT_NUMBER="n10992511"
 S3_BUCKETS=(
     "${STUDENT_NUMBER}-videotranscoder-original"
     "${STUDENT_NUMBER}-videotranscoder-processed"
-    "${STUDENT_NUMBER}-mytranscoder-frontend"
+    "${STUDENT_NUMBER}-videotranscoder-frontend"
 )
 
 for bucket in "${S3_BUCKETS[@]}"; do

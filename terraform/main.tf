@@ -1,4 +1,5 @@
-# Simplified Terraform for core infrastructure only
+# Video Transcoding Service - Core Infrastructure
+# CAB432 Assignment 2 - Terraform Configuration
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -25,7 +26,7 @@ provider "aws" {
   }
 }
 
-# S3 Buckets
+# Storage - S3 Buckets
 resource "aws_s3_bucket" "original_videos" {
   bucket = "${var.student_number}-videotranscoder-original"
 }
@@ -35,10 +36,10 @@ resource "aws_s3_bucket" "processed_videos" {
 }
 
 resource "aws_s3_bucket" "frontend" {
-  bucket = "${var.student_number}-mytranscoder-frontend"
+  bucket = "${var.student_number}-videotranscoder-frontend"
 }
 
-# S3 Encryption
+# Storage - S3 Encryption Configuration
 resource "aws_s3_bucket_server_side_encryption_configuration" "original_videos" {
   bucket = aws_s3_bucket.original_videos.id
   rule {
@@ -57,7 +58,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "processed_videos"
   }
 }
 
-# S3 Versioning
+# Storage - S3 Versioning Configuration
 resource "aws_s3_bucket_versioning" "original_videos" {
   bucket = aws_s3_bucket.original_videos.id
   versioning_configuration {
@@ -72,7 +73,7 @@ resource "aws_s3_bucket_versioning" "processed_videos" {
   }
 }
 
-# DynamoDB Tables
+# Database - DynamoDB Tables
 resource "aws_dynamodb_table" "users" {
   name           = "videotranscoder-users"
   billing_mode   = "PROVISIONED"
@@ -163,7 +164,7 @@ resource "aws_dynamodb_table" "transcode_jobs" {
   }
 }
 
-# Cognito User Pool
+# Authentication - Cognito User Pool
 resource "aws_cognito_user_pool" "main" {
   name = "${var.student_number}-videotranscoder"
 
@@ -196,7 +197,7 @@ resource "aws_cognito_user_pool" "main" {
   }
 }
 
-# Cognito User Pool Client
+# Authentication - Cognito User Pool Client
 resource "aws_cognito_user_pool_client" "main" {
   name         = "videotranscoder-client"
   user_pool_id = aws_cognito_user_pool.main.id
@@ -218,7 +219,7 @@ resource "aws_cognito_user_pool_client" "main" {
   refresh_token_validity = 30
 }
 
-# Cognito User Groups
+# Authentication - Cognito User Groups
 resource "aws_cognito_user_group" "admin" {
   name         = "admin"
   user_pool_id = aws_cognito_user_pool.main.id
@@ -233,10 +234,10 @@ resource "aws_cognito_user_group" "user" {
   precedence   = 2
 }
 
-# ECR Repository exists but cannot be managed due to QUT AWS tagging restrictions
+# Container Registry - ECR Repository (externally managed)
 # Repository URL: 901444280953.dkr.ecr.ap-southeast-2.amazonaws.com/n10992511-video-transcoding-service
 
-# ElastiCache Subnet Group
+# Caching - ElastiCache Subnet Group
 resource "aws_elasticache_subnet_group" "main" {
   name       = "${var.student_number}-videotranscoder-cache"
   subnet_ids = [var.subnet_id, var.secondary_subnet_id]
@@ -246,7 +247,7 @@ resource "aws_elasticache_subnet_group" "main" {
   }
 }
 
-# ElastiCache Parameter Group for Redis
+# Caching - ElastiCache Parameter Group
 resource "aws_elasticache_parameter_group" "redis" {
   family = "redis6.x"
   name   = "${var.student_number}-videotranscoder-redis"
@@ -261,10 +262,9 @@ resource "aws_elasticache_parameter_group" "redis" {
   }
 }
 
-# Use existing CAB432SG security group instead of creating new one
-# QUT AWS restrictions prevent creating security groups
+# Security - Using existing security group (externally managed)
 
-# ElastiCache Redis Cluster
+# Caching - ElastiCache Redis Cluster
 resource "aws_elasticache_replication_group" "redis" {
   replication_group_id         = "${var.student_number}-videotranscoder"
   description                  = "Redis cluster for video transcoding service"
@@ -273,7 +273,7 @@ resource "aws_elasticache_replication_group" "redis" {
   port                         = 6379
   parameter_group_name         = aws_elasticache_parameter_group.redis.name
   subnet_group_name            = aws_elasticache_subnet_group.main.name
-  security_group_ids           = ["sg-078997505ad1c6bbc"]  # Use default VPC security group
+  security_group_ids           = [var.vpc_security_group_id]
 
   num_cache_clusters           = var.elasticache_num_nodes
 
@@ -296,17 +296,13 @@ resource "aws_elasticache_replication_group" "redis" {
   }
 }
 
-# Random password for Redis authentication
+# Security - Random password for Redis authentication
 resource "random_password" "redis_auth" {
   length  = 32
   special = true
 }
 
-# CloudWatch and Secrets Manager resources removed due to QUT AWS restrictions
-# Existing resources in AWS Console:
-# - Secrets Manager: n10992511-cognito-config (managed externally)
-# - CloudWatch: Not accessible with current permissions
-
-# Parameter Store Configuration removed due to QUT AWS restrictions
-# Existing parameters in AWS Console use pattern: /n10992511/videotranscoder/dev/...
-# Application should use Terraform outputs or existing Parameter Store values
+# External Resources (managed outside Terraform)
+# - Secrets Manager: n10992511-cognito-config
+# - CloudWatch: Limited access due to permissions
+# - Parameter Store: Pattern /n10992511/videotranscoder/dev/...
