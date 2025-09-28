@@ -566,24 +566,29 @@ async function transcodeVideoAsync(job) {
       }
     }
 
-    // Upload processed file to cloud storage if using cloud provider
-    if (process.env.STORAGE_PROVIDER === 's3') {
-      console.log(`Uploading processed file to cloud storage...`);
-      const outputBuffer = await fs.promises.readFile(outputPath);
-      const outputFilename = `transcoded_${job.id}_${job.target_resolution}.${job.target_format}`;
-      
-      const uploadResult = await storage.uploadFile(outputBuffer, outputFilename, {
-        category: 'processed',
-        contentType: `video/${job.target_format}`,
-        userId: job.user_id
-      });
-      
-      outputStorageKey = uploadResult.key;
-      outputPath = uploadResult.location;
-      
-      console.log(`Uploaded processed file to cloud: ${outputStorageKey}`);
-      
-      // S3-only: No local cleanup needed
+    // Always upload processed file to S3 (cloud-native architecture)
+    console.log(`Uploading processed file to S3...`);
+    const localOutputPath = outputPath; // Save local path for cleanup
+    const outputBuffer = await fs.promises.readFile(outputPath);
+    const outputFilename = `transcoded_${job.id}_${job.target_resolution}.${job.target_format}`;
+
+    const uploadResult = await storage.uploadFile(outputBuffer, outputFilename, {
+      category: 'processed',
+      contentType: `video/${job.target_format}`,
+      userId: job.user_id
+    });
+
+    outputStorageKey = uploadResult.key;
+    outputPath = uploadResult.location; // S3 location
+
+    console.log(`Uploaded processed file to S3: ${outputStorageKey}`);
+
+    // Clean up local processed file to maintain statelessness
+    try {
+      await fs.promises.unlink(localOutputPath);
+      console.log(`Cleaned up local processed file: ${localOutputPath}`);
+    } catch (err) {
+      console.warn(`Warning: Could not clean up local file: ${err.message}`);
     }
 
     // Update job as completed
