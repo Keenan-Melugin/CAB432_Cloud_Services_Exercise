@@ -13,7 +13,7 @@ const {
   exchangeCodeForTokens,
   getCognitoConfig
 } = require('../utils/cognito');
-const { authenticateToken, requireGroups } = require('../utils/auth');
+const { authenticateToken, requireGroups, getUserIdAndRole } = require('../utils/auth');
 const cache = require('../utils/cache');
 
 const router = express.Router();
@@ -225,11 +225,13 @@ router.get('/me', authenticateToken, async (req, res) => {
 
     if (!userInfo) {
       // Cache miss - build user info
+      const { userRole } = getUserIdAndRole(req.user);
       userInfo = {
         sub: req.user.sub,
         email: req.user.email,
         username: req.user.username,
         groups: req.user.groups,
+        role: userRole,  // Add role field for frontend
         isCognito: req.user.isCognito,
         lastAccess: new Date().toISOString()
       };
@@ -246,11 +248,13 @@ router.get('/me', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error in /auth/me:', error);
     // Fallback to basic response
+    const { userRole } = getUserIdAndRole(req.user);
     res.json({
       sub: req.user.sub,
       email: req.user.email,
       username: req.user.username,
       groups: req.user.groups,
+      role: userRole,  // Add role field for frontend
       isCognito: req.user.isCognito
     });
   }

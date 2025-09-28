@@ -1533,6 +1533,59 @@ window.onclick = function(event) {
     }
 }
 
+// Refresh user info to get updated role/group information
+async function refreshUserInfo() {
+    try {
+        const response = await fetch('/auth/me', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+            const userData = await response.json();
+            console.log('Fresh user data:', userData); // Debug log
+
+            // Update current user data
+            currentUser = userData;
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+
+            // Refresh the UI
+            showMainApp();
+
+            showStatus('userWelcome', 'Account info refreshed!', 'success');
+            setTimeout(() => {
+                showStatus('userWelcome', '', '');
+            }, 2000);
+        } else {
+            showStatus('userWelcome', 'Failed to refresh account info', 'error');
+        }
+    } catch (error) {
+        console.error('Error refreshing user info:', error);
+        showStatus('userWelcome', 'Error refreshing account info', 'error');
+    }
+}
+
+// Test admin access
+async function testAdminAccess() {
+    try {
+        const response = await fetch('/auth/admin-test', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Admin test result:', data);
+            alert('Admin access: SUCCESS!\n' + JSON.stringify(data, null, 2));
+        } else {
+            const error = await response.json();
+            console.log('Admin test failed:', error);
+            alert('Admin access: DENIED\n' + JSON.stringify(error, null, 2));
+        }
+    } catch (error) {
+        console.error('Admin test error:', error);
+        alert('Admin test error: ' + error.message);
+    }
+}
+
 // Admin toggle functions for hiding/showing content
 function toggleVideosVisibility(show) {
     const videosList = document.getElementById('originalVideosList');
