@@ -17,12 +17,6 @@ document.addEventListener('DOMContentLoaded', function() {
         loadOriginalVideos();
         refreshJobs();
 
-        // Auto-refresh user role info for Cognito users to get latest groups
-        if (currentUser && currentUser.isCognito) {
-            setTimeout(() => {
-                refreshUserInfoSilently();
-            }, 1000);
-        }
     }
 });
 
@@ -397,13 +391,8 @@ function showMainApp() {
     }
 
     // Show admin-specific features for admin users
-    console.log('🎯 showMainApp - Checking admin role...');
-    console.log('🎯 currentUser:', currentUser);
-    console.log('🎯 currentUser.role:', currentUser?.role);
-    console.log('🎯 Is admin?', currentUser && currentUser.role === 'admin');
-
     if (currentUser && currentUser.role === 'admin') {
-        console.log('🔥 ADMIN MODE ACTIVATED!');
+        console.log('🔥 Admin mode activated for', currentUser.email || currentUser.username);
 
         // Add admin background
         document.body.classList.add('admin-mode');
@@ -418,8 +407,6 @@ function showMainApp() {
         document.getElementById('videoAdminControls').style.display = 'block';
         document.getElementById('jobsAdminControls').style.display = 'block';
     } else {
-        console.log('👤 Regular user mode');
-
         // Remove admin features for regular users
         document.body.classList.remove('admin-mode');
         document.getElementById('adminBanner').style.display = 'none';
@@ -428,18 +415,6 @@ function showMainApp() {
         document.getElementById('jobsAdminControls').style.display = 'none';
     }
 
-    // Automatically refresh user info to get latest role/group data
-    if (authToken && currentUser && currentUser.isCognito) {
-        console.log('🔄 Scheduling auto-refresh for Cognito user...');
-        setTimeout(() => {
-            refreshUserInfoSilently();
-        }, 500);
-    } else if (authToken && currentUser && !currentUser.role) {
-        console.log('🔄 User missing role field - forcing refresh...');
-        setTimeout(() => {
-            refreshUserInfoSilently();
-        }, 100);
-    }
 
     // Check MFA status when app loads
     setTimeout(() => checkMFAStatus(), 1000);
@@ -1562,74 +1537,6 @@ window.onclick = function(event) {
     }
 }
 
-// Silently refresh user info to get updated role/group information
-async function refreshUserInfoSilently() {
-    try {
-        console.log('🔄 Auto-refreshing user info...');
-        console.log('Current user before refresh:', currentUser);
-
-        const response = await fetch('/auth/me', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-
-        if (response.ok) {
-            const userData = await response.json();
-            console.log('🔄 Auto-refreshed user data:', userData);
-            console.log('🔄 Role detected:', userData.role);
-            console.log('🔄 Groups detected:', userData.groups);
-
-            // Only update if we got different data
-            const oldRole = currentUser?.role;
-            currentUser = userData;
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-            // Refresh the UI to show/hide admin features
-            if (oldRole !== userData.role) {
-                console.log(`🔄 Role changed from "${oldRole}" to "${userData.role}" - refreshing UI`);
-                showMainApp();
-            } else {
-                console.log('🔄 No role change detected');
-                // Still refresh UI to ensure admin features are properly set
-                showMainApp();
-            }
-        } else {
-            console.error('🔄 Failed to refresh user info:', response.status);
-        }
-    } catch (error) {
-        console.error('🔄 Error auto-refreshing user info:', error);
-    }
-}
-
-// Refresh user info to get updated role/group information (with UI feedback)
-async function refreshUserInfo() {
-    try {
-        const response = await fetch('/auth/me', {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-
-        if (response.ok) {
-            const userData = await response.json();
-            console.log('Fresh user data:', userData); // Debug log
-
-            // Update current user data
-            currentUser = userData;
-            localStorage.setItem('currentUser', JSON.stringify(currentUser));
-
-            // Refresh the UI
-            showMainApp();
-
-            showStatus('userWelcome', 'Account info refreshed!', 'success');
-            setTimeout(() => {
-                showStatus('userWelcome', '', '');
-            }, 2000);
-        } else {
-            showStatus('userWelcome', 'Failed to refresh account info', 'error');
-        }
-    } catch (error) {
-        console.error('Error refreshing user info:', error);
-        showStatus('userWelcome', 'Error refreshing account info', 'error');
-    }
-}
 
 
 // Admin toggle functions for hiding/showing content

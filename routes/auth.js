@@ -219,9 +219,7 @@ router.get('/callback', async (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub || req.user.username;
-    console.log('🔍 /auth/me - User requesting info:', userId);
-    console.log('🔍 JWT groups:', req.user.groups);
-    console.log('🔍 Is Cognito:', req.user.isCognito);
+    console.log('🔍 /auth/me - User:', userId, 'Groups:', req.user.groups);
 
     // Try cache first
     let userInfo = await cache.getUserSession(userId);
@@ -244,14 +242,13 @@ router.get('/me', authenticateToken, async (req, res) => {
     } else {
       // Always refresh role data from current JWT token (in case groups changed)
       const { userRole } = getUserIdAndRole(req.user);
-      console.log('🔍 Calculated role from JWT:', userRole);
       userInfo.groups = req.user.groups;
       userInfo.role = userRole;
       userInfo.lastAccess = new Date().toISOString();
       await cache.cacheUserSession(userId, userInfo);
     }
 
-    console.log('🔍 Returning user info:', userInfo);
+    console.log('🔍 Returning role:', userInfo.role, 'for user:', userId);
     res.json(userInfo);
   } catch (error) {
     console.error('Error in /auth/me:', error);
