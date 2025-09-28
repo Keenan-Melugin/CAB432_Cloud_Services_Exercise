@@ -18,7 +18,7 @@ Overview
 - **Partner name (if applicable):** Chiran Walisundara
 - **Application name:** Video Transcoding Service
 - **Two line description:** A cloud-based video transcoding service that allows users to upload videos and convert them to different formats and resolutions. Features include real-time progress tracking, user authentication, and admin management capabilities.
-- **EC2 instance name or ID:** 
+- **EC2 instance name or ID:**  i-084cade87a94aa3d5
 
 ------------------------------------------------
 
@@ -29,7 +29,7 @@ Overview
 - **Why is this service suited to this data?:** Object storage designed for large files with unlimited capacity and high availability
 - **Why is are the other services used not suitable for this data?:** DynamoDB has 400KB item size limit, RDS not designed for binary file storage
 - **Bucket/instance/table name:** videotranscoder-original, videotranscoder-processed
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 00:10
 - **Relevant files:**
     - utils/storage.js
     - utils/aws-config.js
@@ -42,7 +42,7 @@ Overview
 - **Why is this service suited to this data?:** NoSQL database optimized for fast lookups and real-time updates
 - **Why is are the other services used not suitable for this data?:** S3 not designed for structured data queries, requires fast read/write for job progress updates
 - **Bucket/instance/table name:** videotranscoder-users, videotranscoder-videos, videotranscoder-transcode-jobs
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 00:200
 - **Relevant files:**
     - utils/dynamodb.js
     - utils/dynamodb-config.js
@@ -55,14 +55,14 @@ Overview
 - **Why is this service suited to this data?:** In-memory storage provides fast access for session management and caching
 - **Why is are the other services used not suitable for this data?:** DynamoDB slower for frequent session lookups, S3 not designed for session data
 - **Bucket/instance/table name:** videotranscoder-cache
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 00:50
 - **Relevant files:**
     - utils/cache.js
 
 ### S3 Pre-signed URLs
 
 - **S3 Bucket names:** videotranscoder-original, videotranscoder-processed
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 00:40
 - **Relevant files:**
     - utils/storage.js
     - routes/videos.js
@@ -73,7 +73,7 @@ Overview
 - **ElastiCache instance name:** videotranscoder-cache
 - **What data is being cached?:** User session information and authentication data
 - **Why is this data likely to be accessed frequently?:** User sessions accessed on every authenticated request for authorization
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 00:50
 - **Relevant files:**
     - utils/cache.js
     - routes/auth.js
@@ -99,7 +99,7 @@ Overview
 
 - **User pool name:** videotranscoder-users
 - **How are authentication tokens handled by the client?:** JWT tokens stored in localStorage and sent in Authorization header for API requests
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 01:10
 - **Relevant files:**
     - routes/auth.js
     - utils/auth.js
@@ -108,7 +108,7 @@ Overview
 ### Cognito multi-factor authentication
 
 - **What factors are used for authentication:** Password and TOTP (authenticator app) or SMS codes
-- **Video timestamp:** [Your timestamp]
+- **Video timestamp:** 01:20
 - **Relevant files:**
     - utils/cognito.js
     - routes/auth.js
@@ -116,7 +116,7 @@ Overview
 
 ### Cognito federated identities
 
-- **Identity providers used:** Google OAuth
+- **Identity providers used:** Google OAuth,  this is partically implemented, continuous frontend issues
 - **Video timestamp:** [Your timestamp]
 - **Relevant files:**
     - routes/auth.js (Google OAuth endpoints)
