@@ -1,6 +1,6 @@
 // Redis configuration for ElastiCache
 const Redis = require('ioredis');
-const { getSecretValue } = require('./secrets-manager');
+const { getSecret } = require('./secrets-manager');
 const parameterStore = require('./parameter-store');
 
 let redisClient = null;
@@ -43,7 +43,7 @@ async function initializeRedis() {
       let redisConfig;
       try {
         // Try to get configuration from Secrets Manager first
-        redisConfig = await getSecretValue('redis-config');
+        redisConfig = await getSecret('redis-config');
       } catch (error) {
         console.log('📋 Secrets Manager not available, using Parameter Store...');
         // Fallback to Parameter Store
