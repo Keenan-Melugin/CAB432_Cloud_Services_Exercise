@@ -268,29 +268,8 @@ resource "aws_elasticache_parameter_group" "redis" {
   }
 }
 
-# Security Group for ElastiCache
-resource "aws_security_group" "elasticache" {
-  name_prefix = "${var.student_number}-videotranscoder-cache-"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    from_port   = 6379
-    to_port     = 6379
-    protocol    = "tcp"
-    cidr_blocks = ["172.31.0.0/16"]  # Default VPC CIDR for QUT AWS
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "VideoTranscoder-ElastiCache-SG"
-  }
-}
+# Use existing CAB432SG security group instead of creating new one
+# QUT AWS restrictions prevent creating security groups
 
 # ElastiCache Redis Cluster
 resource "aws_elasticache_replication_group" "redis" {
@@ -301,7 +280,7 @@ resource "aws_elasticache_replication_group" "redis" {
   port                         = 6379
   parameter_group_name         = aws_elasticache_parameter_group.redis.name
   subnet_group_name            = aws_elasticache_subnet_group.main.name
-  security_group_ids           = [aws_security_group.elasticache.id]
+  security_group_ids           = ["sg-032bd1ff8cf77dbb9"]  # Use existing CAB432SG
 
   num_cache_clusters           = var.elasticache_num_nodes
 
