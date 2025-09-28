@@ -32,7 +32,6 @@
     "jsonwebtoken": "^9.0.0",
     "jwks-rsa": "^3.1.0",
     "multer": "^1.4.4",
-    "sqlite3": "^5.1.4",
     "uuid": "^9.0.0"
   },
   "keywords": [

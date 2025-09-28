@@ -1,9 +1,7 @@
-# Upload directories
+# Upload directories (local temp files only - using S3 for storage)
 uploads/original/
 uploads/processed/
-
-# Database files
-data/
+uploads/temp/
 
 # Dependencies
 node_modules/
