@@ -355,7 +355,6 @@ async function transcodeVideoAsync(job) {
   const startTime = Date.now();
   let inputPath = job.file_path;
   let outputPath = path.join('uploads', 'processed', `${job.id}.${job.target_format}`);
-  let tempInputPath = null;
   let outputStorageKey = null;
   
   try {
@@ -366,18 +365,13 @@ async function transcodeVideoAsync(job) {
     console.log(`Quality: ${job.quality_preset || 'medium'} | Bitrate: ${job.bitrate || '1000k'}`);
     console.log(`Repeat Count: ${repeatCount}x (for sustained CPU load)`);
 
-    // Check if we need to download the input file from cloud storage
-    if (process.env.STORAGE_PROVIDER === 's3' && job.storage_key) {
-      console.log(`Downloading input file from cloud storage: ${job.storage_key}`);
-      const downloadResult = await storage.downloadFile(job.storage_key);
-      
-      // Create temporary file for FFmpeg processing
-      tempInputPath = path.join('uploads', 'temp', `input_${job.id}_${Date.now()}.tmp`);
-      await fs.promises.mkdir(path.dirname(tempInputPath), { recursive: true });
-      await fs.promises.writeFile(tempInputPath, downloadResult.buffer);
-      inputPath = tempInputPath;
-      
-      console.log(`Downloaded and cached input file: ${tempInputPath}`);
+    // Use signed URL for S3 files instead of downloading (maintains statelessness)
+    if (job.storage_key) {
+      console.log(`Generating signed URL for S3 file: ${job.storage_key}`);
+      // Generate signed URL valid for 2 hours (enough for processing)
+      const signedUrl = await storage.getFileUrl(job.storage_key, 7200, 'original');
+      inputPath = signedUrl;
+      console.log(`Using signed URL for direct FFmpeg access: ${signedUrl.substring(0, 100)}...`);
     }
 
     // Ensure output directory exists
@@ -626,14 +620,8 @@ async function transcodeVideoAsync(job) {
       error: error.message
     });
   } finally {
-    // Clean up temporary input file if it was created
-    if (tempInputPath) {
-      try {
-        await fs.promises.unlink(tempInputPath);
-      } catch (err) {
-        console.warn(`Warning: Could not clean up temporary file: ${err.message}`);
-      }
-    }
+    // No cleanup needed for signed URLs (stateless approach)
+    console.log(`Transcoding process completed for job ${job.id}`);
   }
 }
 
