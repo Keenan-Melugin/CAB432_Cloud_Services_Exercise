@@ -268,11 +268,6 @@ resource "aws_elasticache_parameter_group" "redis" {
   }
 }
 
-# Get VPC info for security group rules
-data "aws_vpc" "main" {
-  id = var.vpc_id
-}
-
 # Security Group for ElastiCache
 resource "aws_security_group" "elasticache" {
   name_prefix = "${var.student_number}-videotranscoder-cache-"
@@ -282,7 +277,7 @@ resource "aws_security_group" "elasticache" {
     from_port   = 6379
     to_port     = 6379
     protocol    = "tcp"
-    cidr_blocks = [data.aws_vpc.main.cidr_block]
+    cidr_blocks = ["172.31.0.0/16"]  # Default VPC CIDR for QUT AWS
   }
 
   egress {
