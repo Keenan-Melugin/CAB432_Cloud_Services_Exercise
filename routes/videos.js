@@ -8,6 +8,7 @@ const { authenticateToken, getUserIdAndRole } = require('../utils/auth');
 const storage = require('../utils/storage');
 const { s3Client, buckets } = require('../utils/aws-config');
 const { createPresignedPost } = require('@aws-sdk/s3-presigned-post');
+const cache = require('../utils/cache');
 
 const router = express.Router();
 
@@ -115,6 +116,9 @@ router.post('/confirm-upload', authenticateToken, async (req, res) => {
     });
 
     console.log(`Video upload confirmed: ${originalName} (${sizeMB.toFixed(2)}MB) by ${req.user.username || req.user.email} -> ${key}`);
+
+    // Invalidate user's video cache since they have a new video
+    await cache.invalidateUserVideos(userId);
 
     res.json({
       message: 'Video upload confirmed successfully',
@@ -228,10 +232,23 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     // Use helper function for consistent user ID and role handling
     const { userId, userRole } = getUserIdAndRole(req.user);
-    const videos = await database.getVideosByUser(userId, userRole);
 
-    if (!Array.isArray(videos)) {
-      return res.json([]);
+    // Try cache first
+    let videos = await cache.getUserVideos(userId);
+
+    if (!videos) {
+      // Cache miss - fetch from database
+      console.log(`📋 Cache miss for user videos: ${userId}`);
+      videos = await database.getVideosByUser(userId, userRole);
+
+      if (!Array.isArray(videos)) {
+        videos = [];
+      }
+
+      // Cache the results
+      await cache.cacheUserVideos(userId, videos);
+    } else {
+      console.log(`🎯 Cache hit for user videos: ${userId}`);
     }
 
     const mappedVideos = videos.map(video => ({

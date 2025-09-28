@@ -36,8 +36,8 @@ pids/
 # Test coverage
 coverage/
 
-# Documents folder
-documents/terraform/.terraform/
+# Documents folder (project documentation - not needed in repo)
+documents/
 
 # Terraform
 **/.terraform/

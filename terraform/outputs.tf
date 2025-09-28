@@ -97,15 +97,41 @@ output "ecr_repository_arn" {
   value       = aws_ecr_repository.app.arn
 }
 
+# ElastiCache
+output "elasticache_redis_endpoint" {
+  description = "ElastiCache Redis primary endpoint"
+  value       = aws_elasticache_replication_group.redis.primary_endpoint_address
+}
+
+output "elasticache_redis_port" {
+  description = "ElastiCache Redis port"
+  value       = aws_elasticache_replication_group.redis.port
+}
+
+output "elasticache_redis_arn" {
+  description = "ARN of the ElastiCache Redis replication group"
+  value       = aws_elasticache_replication_group.redis.arn
+}
+
 # Secrets Manager
-output "secrets_manager_secret_arn" {
-  description = "ARN of the Secrets Manager secret"
+output "secrets_manager_cognito_arn" {
+  description = "ARN of the Cognito Secrets Manager secret"
   value       = aws_secretsmanager_secret.cognito_config.arn
 }
 
-output "secrets_manager_secret_name" {
-  description = "Name of the Secrets Manager secret"
+output "secrets_manager_cognito_name" {
+  description = "Name of the Cognito Secrets Manager secret"
   value       = aws_secretsmanager_secret.cognito_config.name
+}
+
+output "secrets_manager_redis_arn" {
+  description = "ARN of the Redis Secrets Manager secret"
+  value       = aws_secretsmanager_secret.redis_config.arn
+}
+
+output "secrets_manager_redis_name" {
+  description = "Name of the Redis Secrets Manager secret"
+  value       = aws_secretsmanager_secret.redis_config.name
 }
 
 # CloudWatch
@@ -128,7 +154,9 @@ output "parameter_store_keys" {
     "/videotranscoder/dynamodb/table-prefix",
     "/videotranscoder/cognito/user-pool-id",
     "/videotranscoder/cognito/client-id",
-    "/videotranscoder/ecr/repository-uri"
+    "/videotranscoder/ecr/repository-uri",
+    "/videotranscoder/redis/endpoint",
+    "/videotranscoder/redis/port"
   ]
 }
 
@@ -142,11 +170,14 @@ output "application_environment_variables" {
     DATABASE_PROVIDER    = "dynamodb"
     STORAGE_PROVIDER     = "s3"
     CONFIG_PROVIDER      = "parameter-store"
+    CACHE_PROVIDER       = "elasticache"
     S3_ORIGINAL_BUCKET   = aws_s3_bucket.original_videos.id
     S3_PROCESSED_BUCKET  = aws_s3_bucket.processed_videos.id
     COGNITO_USER_POOL_ID = aws_cognito_user_pool.main.id
     COGNITO_CLIENT_ID    = aws_cognito_user_pool_client.main.id
     DYNAMODB_TABLE_PREFIX = "videotranscoder"
+    REDIS_ENDPOINT       = aws_elasticache_replication_group.redis.primary_endpoint_address
+    REDIS_PORT           = tostring(aws_elasticache_replication_group.redis.port)
   }
   sensitive = true
 }
@@ -166,12 +197,14 @@ output "deployment_timestamp" {
 output "resource_summary" {
   description = "Summary of created resources"
   value = {
-    s3_buckets          = 3
-    dynamodb_tables     = 3
-    cognito_user_pools  = 1
-    ecr_repositories    = 1
-    secrets             = 1
-    parameter_store_params = 6
-    log_groups          = 1
+    s3_buckets              = 3
+    dynamodb_tables         = 3
+    cognito_user_pools      = 1
+    ecr_repositories        = 1
+    elasticache_clusters    = 1
+    secrets                 = 2
+    parameter_store_params  = 8
+    log_groups              = 1
+    security_groups         = 1
   }
 }

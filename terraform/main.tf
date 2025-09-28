@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -239,6 +243,98 @@ resource "aws_ecr_repository" "app" {
   }
 }
 
+# ElastiCache Subnet Group
+resource "aws_elasticache_subnet_group" "main" {
+  name       = "${var.student_number}-videotranscoder-cache"
+  subnet_ids = [var.subnet_id, var.secondary_subnet_id]
+
+  tags = {
+    Name = "VideoTranscoder-CacheSubnetGroup"
+  }
+}
+
+# ElastiCache Parameter Group for Redis
+resource "aws_elasticache_parameter_group" "redis" {
+  family = "redis7.x"
+  name   = "${var.student_number}-videotranscoder-redis"
+
+  parameter {
+    name  = "maxmemory-policy"
+    value = "allkeys-lru"
+  }
+
+  tags = {
+    Name = "VideoTranscoder-RedisParams"
+  }
+}
+
+# Get VPC info for security group rules
+data "aws_vpc" "main" {
+  id = var.vpc_id
+}
+
+# Security Group for ElastiCache
+resource "aws_security_group" "elasticache" {
+  name_prefix = "${var.student_number}-videotranscoder-cache-"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    cidr_blocks = [data.aws_vpc.main.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "VideoTranscoder-ElastiCache-SG"
+  }
+}
+
+# ElastiCache Redis Cluster
+resource "aws_elasticache_replication_group" "redis" {
+  replication_group_id         = "${var.student_number}-videotranscoder"
+  description                  = "Redis cluster for video transcoding service"
+
+  node_type                    = var.elasticache_node_type
+  port                         = 6379
+  parameter_group_name         = aws_elasticache_parameter_group.redis.name
+  subnet_group_name            = aws_elasticache_subnet_group.main.name
+  security_group_ids           = [aws_security_group.elasticache.id]
+
+  num_cache_clusters           = var.elasticache_num_nodes
+
+  engine_version               = "7.0"
+  at_rest_encryption_enabled   = true
+  transit_encryption_enabled   = true
+  auth_token                   = random_password.redis_auth.result
+
+  automatic_failover_enabled   = var.elasticache_num_nodes > 1
+  multi_az_enabled            = var.elasticache_num_nodes > 1
+
+  maintenance_window          = "sun:05:00-sun:06:00"
+  snapshot_retention_limit    = var.elasticache_backup_retention_days
+  snapshot_window            = "03:00-04:00"
+
+  final_snapshot_identifier  = "${var.student_number}-videotranscoder-final-snapshot"
+
+  tags = {
+    Name = "VideoTranscoder-Redis"
+  }
+}
+
+# Random password for Redis authentication
+resource "random_password" "redis_auth" {
+  length  = 32
+  special = true
+}
+
 # CloudWatch Log Group
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/aws/ec2/videotranscoder"
@@ -265,6 +361,22 @@ resource "aws_secretsmanager_secret_version" "cognito_config" {
   })
 }
 
+# ElastiCache Redis configuration in Secrets Manager
+resource "aws_secretsmanager_secret" "redis_config" {
+  name = "${var.student_number}-redis-config"
+  description = "Redis configuration for VideoTranscoder caching"
+}
+
+resource "aws_secretsmanager_secret_version" "redis_config" {
+  secret_id = aws_secretsmanager_secret.redis_config.id
+  secret_string = jsonencode({
+    host        = aws_elasticache_replication_group.redis.primary_endpoint_address
+    port        = aws_elasticache_replication_group.redis.port
+    auth_token  = random_password.redis_auth.result
+    tls_enabled = true
+  })
+}
+
 # Parameter Store Configuration
 resource "aws_ssm_parameter" "app_config" {
   for_each = {
@@ -274,6 +386,8 @@ resource "aws_ssm_parameter" "app_config" {
     "/videotranscoder/cognito/user-pool-id"  = aws_cognito_user_pool.main.id
     "/videotranscoder/cognito/client-id"     = aws_cognito_user_pool_client.main.id
     "/videotranscoder/ecr/repository-uri"    = aws_ecr_repository.app.repository_url
+    "/videotranscoder/redis/endpoint"        = aws_elasticache_replication_group.redis.primary_endpoint_address
+    "/videotranscoder/redis/port"            = tostring(aws_elasticache_replication_group.redis.port)
   }
 
   name  = each.key

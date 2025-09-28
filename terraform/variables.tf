@@ -179,6 +179,25 @@ variable "container_image_tag" {
   default     = "latest"
 }
 
+# ElastiCache Configuration
+variable "elasticache_node_type" {
+  description = "ElastiCache node type"
+  type        = string
+  default     = "cache.t3.micro"
+}
+
+variable "elasticache_num_nodes" {
+  description = "Number of cache nodes in the replication group"
+  type        = number
+  default     = 2
+}
+
+variable "elasticache_backup_retention_days" {
+  description = "Number of days to retain ElastiCache snapshots"
+  type        = number
+  default     = 5
+}
+
 # Tagging
 variable "additional_tags" {
   description = "Additional tags to apply to all resources"

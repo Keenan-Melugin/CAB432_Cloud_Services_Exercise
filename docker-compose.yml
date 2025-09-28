@@ -10,9 +10,12 @@ services:
       - PORT=3000
       - DATABASE_PROVIDER=dynamodb
       - STORAGE_PROVIDER=s3
+      - CACHE_PROVIDER=redis
       - AWS_REGION=ap-southeast-2
       - S3_ORIGINAL_BUCKET=n10992511-videotranscoder-original
       - S3_PROCESSED_BUCKET=n10992511-videotranscoder-processed
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     volumes:
       - ./data:/app/data
       - /opt/ssl:/opt/ssl:ro
@@ -26,6 +29,8 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    depends_on:
+      - redis
 
   # Redis Cache (optional, for session management and job queuing)
   redis:

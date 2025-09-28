@@ -6,17 +6,26 @@ const { v4: uuidv4 } = require('uuid');
 const database = require('../utils/database-abstraction');
 const { authenticateToken, requireAdmin, getUserIdAndRole } = require('../utils/auth');
 const storage = require('../utils/storage');
+const cache = require('../utils/cache');
 
 const router = express.Router();
 
-// Progress storage via database (stateless)
+// Progress storage via database and cache (enhanced with Redis)
 async function updateProgress(jobId, status, percent = 0, details = {}) {
   try {
-    await database.updateTranscodeJob(jobId, {
+    const progressData = {
       status: status,
       progress: percent,
+      timestamp: new Date().toISOString(),
       ...details
-    });
+    };
+
+    // Update database
+    await database.updateTranscodeJob(jobId, progressData);
+
+    // Cache progress for fast polling access
+    await cache.cacheJobProgress(jobId, progressData);
+
     console.log(`📊 Progress stored: ${jobId} -> ${percent}% (${status})`);
   } catch (error) {
     console.error(`Failed to update progress for job ${jobId}:`, error);
@@ -28,6 +37,21 @@ async function updateProgress(jobId, status, percent = 0, details = {}) {
 // POST /transcode/jobs - Create new transcoding job
 router.post('/jobs', authenticateToken, async (req, res) => {
   try {
+    // Rate limiting: max 10 job creations per user per hour
+    const { userId } = getUserIdAndRole(req.user);
+    const rateLimitResult = await cache.checkRateLimit(
+      `job_create:${userId}`,
+      10, // max requests
+      3600 // 1 hour window
+    );
+
+    if (!rateLimitResult.allowed) {
+      return res.status(429).json({
+        error: 'Rate limit exceeded',
+        message: 'Too many job creation requests. Please try again later.',
+        retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000)
+      });
+    }
     const { 
       video_id, 
       target_resolution, 
@@ -80,7 +104,7 @@ router.post('/jobs', authenticateToken, async (req, res) => {
     }
 
     // Check permissions - regular users can only transcode their own videos
-    const { userId, userRole } = getUserIdAndRole(req.user);
+    const { userRole } = getUserIdAndRole(req.user);
     if (userRole !== 'admin' && video.user_id !== userId) {
       return res.status(404).json({ error: 'Video not found or access denied' });
     }
@@ -100,6 +124,9 @@ router.post('/jobs', authenticateToken, async (req, res) => {
     });
 
     console.log(`Transcoding job created: ${job.id} by ${req.user.username}`);
+
+    // Invalidate user's job cache since they have a new job
+    await cache.invalidateUserJobs(userId);
 
     res.json({
       message: 'Transcoding job created successfully',
@@ -203,10 +230,23 @@ router.get('/jobs', authenticateToken, async (req, res) => {
 
     // Use helper function for consistent user ID and role handling
     const { userId, userRole } = getUserIdAndRole(req.user);
-    const jobs = await database.getTranscodeJobsByUser(userId, userRole);
 
-    if (!Array.isArray(jobs)) {
-      return res.json([]);
+    // Try cache first
+    let jobs = await cache.getUserJobs(userId);
+
+    if (!jobs) {
+      // Cache miss - fetch from database
+      console.log(`📋 Cache miss for user jobs: ${userId}`);
+      jobs = await database.getTranscodeJobsByUser(userId, userRole);
+
+      if (!Array.isArray(jobs)) {
+        jobs = [];
+      }
+
+      // Cache the results
+      await cache.cacheUserJobs(userId, jobs);
+    } else {
+      console.log(`🎯 Cache hit for user jobs: ${userId}`);
     }
 
     res.json(jobs);
@@ -300,15 +340,37 @@ router.get('/download/:jobId', authenticateToken, async (req, res) => {
 router.get('/progress/:jobId', authenticateToken, async (req, res) => {
   try {
     const { jobId } = req.params;
-    const job = await database.getTranscodeJobById(jobId);
 
-    if (job) {
-      console.log(`📋 Progress requested for ${jobId}: ${job.progress || 0}%`);
+    // Try cache first (much faster for frequent polling)
+    let progressData = await cache.getJobProgress(jobId);
+
+    if (!progressData) {
+      // Cache miss - fetch from database
+      const job = await database.getTranscodeJobById(jobId);
+
+      if (job) {
+        progressData = {
+          status: job.status,
+          progress: job.progress || 0,
+          message: job.error_message || 'Processing...',
+          timestamp: job.updated_at || job.created_at
+        };
+
+        // Cache the progress data for subsequent polls
+        await cache.cacheJobProgress(jobId, progressData);
+        console.log(`📋 Progress from DB for ${jobId}: ${progressData.progress}%`);
+      }
+    } else {
+      console.log(`⚡ Progress from cache for ${jobId}: ${progressData.progress}%`);
+    }
+
+    if (progressData) {
       res.json({
         jobId,
-        status: job.status,
-        progress: job.progress || 0,
-        message: job.error_message || 'Processing...'
+        status: progressData.status,
+        progress: progressData.progress,
+        message: progressData.message,
+        timestamp: progressData.timestamp
       });
     } else {
       res.json({
@@ -593,7 +655,7 @@ async function transcodeVideoAsync(job) {
 
     // Update job as completed
     const processingTime = Math.round((Date.now() - startTime) / 1000);
-    
+
     await database.updateTranscodeJob(job.id, {
       status: 'completed',
       completed_at: true,
@@ -610,9 +672,12 @@ async function transcodeVideoAsync(job) {
       message: 'Transcoding complete!'
     });
 
+    // Invalidate user's job cache since job status changed
+    await cache.invalidateUserJobs(job.user_id);
+
   } catch (error) {
     console.error(`Transcoding failed for job ${job.id}:`, error.message);
-    
+
     // Update job as failed
     await database.updateTranscodeJob(job.id, {
       status: 'failed',
@@ -624,6 +689,9 @@ async function transcodeVideoAsync(job) {
     await updateProgress(job.id, 'failed', 0, {
       error: error.message
     });
+
+    // Invalidate user's job cache since job status changed
+    await cache.invalidateUserJobs(job.user_id);
   } finally {
     // No cleanup needed for signed URLs (stateless approach)
     console.log(`Transcoding process completed for job ${job.id}`);

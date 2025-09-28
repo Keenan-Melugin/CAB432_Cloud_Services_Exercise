@@ -14,6 +14,7 @@ const {
   getCognitoConfig
 } = require('../utils/cognito');
 const { authenticateToken, requireGroups } = require('../utils/auth');
+const cache = require('../utils/cache');
 
 const router = express.Router();
 
@@ -112,6 +113,9 @@ router.post('/login', async (req, res) => {
 
     // Decode the ID token to get user information
     const decodedToken = jwt.decode(idToken);
+
+    // Invalidate any existing cached user session (fresh login)
+    await cache.invalidateUserSession(decodedToken.sub);
 
     // Return success response with tokens
     res.json({
@@ -212,14 +216,44 @@ router.get('/callback', async (req, res) => {
 });
 
 // GET /auth/me - Get current user info including groups
-router.get('/me', authenticateToken, (req, res) => {
-  res.json({
-    sub: req.user.sub,
-    email: req.user.email,
-    username: req.user.username,
-    groups: req.user.groups,
-    isCognito: req.user.isCognito
-  });
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.sub || req.user.username;
+
+    // Try cache first
+    let userInfo = await cache.getUserSession(userId);
+
+    if (!userInfo) {
+      // Cache miss - build user info
+      userInfo = {
+        sub: req.user.sub,
+        email: req.user.email,
+        username: req.user.username,
+        groups: req.user.groups,
+        isCognito: req.user.isCognito,
+        lastAccess: new Date().toISOString()
+      };
+
+      // Cache for 1 hour
+      await cache.cacheUserSession(userId, userInfo);
+    } else {
+      // Update last access time
+      userInfo.lastAccess = new Date().toISOString();
+      await cache.cacheUserSession(userId, userInfo);
+    }
+
+    res.json(userInfo);
+  } catch (error) {
+    console.error('Error in /auth/me:', error);
+    // Fallback to basic response
+    res.json({
+      sub: req.user.sub,
+      email: req.user.email,
+      username: req.user.username,
+      groups: req.user.groups,
+      isCognito: req.user.isCognito
+    });
+  }
 });
 
 // GET /auth/admin-test - Test admin-only endpoint

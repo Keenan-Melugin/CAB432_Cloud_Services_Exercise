@@ -8,6 +8,7 @@ const https = require('https');
 
 // Import route modules and database
 const database = require('./utils/database-abstraction');
+const cache = require('./utils/cache');
 const authRoutes = require('./routes/auth');
 const videoRoutes = require('./routes/videos');
 const transcodeRoutes = require('./routes/transcode');
@@ -51,13 +52,28 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    service: 'Video Transcoding Service',
-    timestamp: new Date().toISOString()
-  });
+// Health check endpoint with cache status
+app.get('/health', async (req, res) => {
+  try {
+    const cacheHealth = await cache.healthCheck();
+
+    res.json({
+      status: 'OK',
+      service: 'Video Transcoding Service',
+      timestamp: new Date().toISOString(),
+      cache: cacheHealth
+    });
+  } catch (error) {
+    res.json({
+      status: 'OK',
+      service: 'Video Transcoding Service',
+      timestamp: new Date().toISOString(),
+      cache: {
+        status: 'error',
+        message: error.message
+      }
+    });
+  }
 });
 
 // Start HTTPS server with improved error handling
@@ -125,6 +141,7 @@ async function startServer() {
   try {
     await initializeDirectories();
     await database.init(); // Initialize database with tables and users
+    await cache.init(); // Initialize Redis cache connection
 
     // Start HTTP server (for backwards compatibility)
     app.listen(PORT, () => {
