@@ -117,6 +117,10 @@ router.post('/login', async (req, res) => {
     // Invalidate any existing cached user session (fresh login)
     await cache.invalidateUserSession(decodedToken.sub);
 
+    // Calculate role from token groups for immediate admin detection
+    const userGroups = decodedToken['cognito:groups'] || [];
+    const userRole = userGroups.includes('admin') ? 'admin' : 'user';
+
     // Return success response with tokens
     res.json({
       message: 'Login successful',
@@ -126,7 +130,11 @@ router.post('/login', async (req, res) => {
       user: {
         sub: decodedToken.sub,
         email: decodedToken.email,
-        emailVerified: decodedToken.email_verified
+        emailVerified: decodedToken.email_verified,
+        username: decodedToken['cognito:username'],
+        groups: userGroups,
+        role: userRole,  // Add role for immediate admin detection
+        isCognito: true
       }
     });
 
@@ -191,6 +199,10 @@ router.get('/callback', async (req, res) => {
 
     console.log('Federated user logged in:', decodedToken.email);
 
+    // Calculate role from token groups for immediate admin detection
+    const userGroups = decodedToken['cognito:groups'] || [];
+    const userRole = userGroups.includes('admin') ? 'admin' : 'user';
+
     // Return success response with tokens (similar to regular login)
     res.json({
       message: 'Federated login successful',
@@ -201,11 +213,15 @@ router.get('/callback', async (req, res) => {
         sub: decodedToken.sub,
         email: decodedToken.email,
         emailVerified: decodedToken.email_verified,
+        username: decodedToken['cognito:username'],
         name: decodedToken.name,
         givenName: decodedToken.given_name,
         familyName: decodedToken.family_name,
+        groups: userGroups,
+        role: userRole,  // Add role for immediate admin detection
         provider: 'Google',
-        isFederated: true
+        isFederated: true,
+        isCognito: true
       }
     });
 
@@ -296,6 +312,10 @@ router.post('/mfa/challenge', async (req, res) => {
       // Decode the ID token to get user information
       const decodedToken = jwt.decode(idToken);
 
+      // Calculate role from token groups for immediate admin detection
+      const userGroups = decodedToken['cognito:groups'] || [];
+      const userRole = userGroups.includes('admin') ? 'admin' : 'user';
+
       res.json({
         message: 'MFA verification successful',
         accessToken,
@@ -304,7 +324,11 @@ router.post('/mfa/challenge', async (req, res) => {
         user: {
           sub: decodedToken.sub,
           email: decodedToken.email,
-          emailVerified: decodedToken.email_verified
+          emailVerified: decodedToken.email_verified,
+          username: decodedToken['cognito:username'],
+          groups: userGroups,
+          role: userRole,  // Add role for immediate admin detection
+          isCognito: true
         }
       });
 
