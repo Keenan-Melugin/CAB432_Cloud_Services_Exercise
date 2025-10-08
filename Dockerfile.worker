@@ -1,0 +1,45 @@
+# Dockerfile for Video Transcoding Worker
+# Runs on ECS, polls SQS queue, and processes transcoding jobs
+
+# Use Node.js Alpine for minimal image size
+FROM node:20-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install FFmpeg and required system dependencies
+# FFmpeg is essential for video transcoding
+RUN apk add --no-cache \
+    ffmpeg \
+    python3 \
+    make \
+    g++
+
+# Copy package files first (for layer caching)
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Copy application code
+COPY worker/ ./worker/
+COPY utils/ ./utils/
+
+# Create directory for temporary video processing
+RUN mkdir -p /tmp/processed && \
+    chown -R node:node /tmp/processed
+
+# Use non-root user for security
+USER node
+
+# Set environment variables (will be overridden by ECS task definition)
+ENV NODE_ENV=production
+ENV SQS_QUEUE_URL=https://sqs.ap-southeast-2.amazonaws.com/901444280953/n10992511-transcode-jobs
+ENV AWS_REGION=ap-southeast-2
+
+# Health check - verify worker is running
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD pgrep -f "node.*transcode-worker" || exit 1
+
+# Run the worker
+CMD ["node", "worker/transcode-worker.js"]
