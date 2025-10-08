@@ -148,7 +148,7 @@ router.post('/jobs', authenticateToken, async (req, res) => {
   }
 });
 
-// POST /transcode/start/:jobId - Start CPU-intensive transcoding
+// POST /transcode/start/:jobId - Queue transcoding job to SQS for ECS worker
 router.post('/start/:jobId', authenticateToken, async (req, res) => {
   try {
     const { jobId } = req.params;
@@ -161,7 +161,7 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
     // Get job details including storage keys
     const { userId, userRole } = getUserIdAndRole(req.user);
     const job = await database.getTranscodeJobWithVideo(jobId, userId, userRole);
-    
+
     if (!job) {
       return res.status(404).json({ error: 'Job not found or access denied' });
     }
@@ -170,53 +170,63 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Job is not in pending status' });
     }
 
-    // Resource validation before processing
-    try {
-      // Check if input file exists and get its size
-      const fs = require('fs');
-      if (job.file_path && fs.existsSync(job.file_path)) {
-        const stats = fs.statSync(job.file_path);
-        const fileSizeGB = stats.size / (1024 * 1024 * 1024);
-        
-        // Warn for large files and high-resource combinations
-        if (fileSizeGB > 1 && job.quality_preset === 'veryslow') {
-          console.warn(`Warning: Large file (${fileSizeGB.toFixed(2)}GB) with veryslow preset - may cause memory issues`);
-        }
-        
-        // Reject extremely large files to prevent system crashes
-        if (fileSizeGB > 5) {
-          return res.status(400).json({ 
-            error: `File too large (${fileSizeGB.toFixed(2)}GB). Maximum supported: 5GB. Try using 'fast' or 'ultrafast' preset for large files.` 
-          });
-        }
-      }
-    } catch (error) {
-      console.error('File validation error:', error.message);
-    }
-
-    // Update job status to processing
+    // Update job status to queued
     await database.updateTranscodeJob(jobId, {
-      status: 'processing',
-      started_at: true
+      status: 'queued',
+      queued_at: true
     });
 
-    // Start transcoding asynchronously (this is the CPU-intensive part!)
-    transcodeVideoAsync(job);
+    // Send job to SQS queue for ECS worker to process
+    const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs');
+    const sqsClient = new SQSClient({ region: process.env.AWS_REGION || 'ap-southeast-2' });
+
+    const queueUrl = process.env.SQS_QUEUE_URL || 'https://sqs.ap-southeast-2.amazonaws.com/901444280953/n10992511-transcode-jobs';
+
+    const message = {
+      id: job.id,
+      user_id: job.user_id,
+      video_id: job.video_id,
+      storage_key: job.storage_key,
+      file_path: job.file_path,
+      target_resolution: job.target_resolution,
+      target_format: job.target_format,
+      quality_preset: job.quality_preset || 'medium',
+      bitrate: job.bitrate || '1000k',
+      repeat_count: job.repeat_count || 1
+    };
+
+    const sendCommand = new SendMessageCommand({
+      QueueUrl: queueUrl,
+      MessageBody: JSON.stringify(message)
+    });
+
+    await sqsClient.send(sendCommand);
+
+    // Invalidate user's job cache
+    await cache.invalidateUserJobs(userId);
 
     res.json({
-      message: 'Transcoding started successfully',
+      message: 'Transcoding job queued successfully',
       job: {
         id: jobId,
-        status: 'processing',
-        message: 'Video transcoding in progress. This will consume high CPU resources.'
+        status: 'queued',
+        message: 'Job sent to ECS worker queue. Processing will begin shortly.'
       }
     });
 
-    console.log(`Started transcoding job: ${jobId}`);
+    console.log(`✅ Transcoding job queued to SQS: ${jobId}`);
 
   } catch (error) {
-    console.error('Error starting transcoding:', error);
-    res.status(500).json({ error: 'Failed to start transcoding' });
+    console.error('Error queueing transcoding job:', error);
+
+    // Revert job status to pending if queueing failed
+    try {
+      await database.updateTranscodeJob(req.params.jobId, { status: 'pending' });
+    } catch (dbError) {
+      console.error('Failed to revert job status:', dbError);
+    }
+
+    res.status(500).json({ error: 'Failed to queue transcoding job' });
   }
 });
 
