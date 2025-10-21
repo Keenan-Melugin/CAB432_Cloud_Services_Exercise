@@ -209,8 +209,8 @@ if [ $? -eq 0 ]; then
     rm -f destroy.tfplan
 
     echo
-    echo "🧹 DESTRUCTION COMPLETE! 🧹"
-    echo "=========================="
+    echo "DESTRUCTION COMPLETE!"
+    echo "====================="
     echo
     echo "All infrastructure resources have been destroyed:"
     echo "   - EC2 instances terminated"

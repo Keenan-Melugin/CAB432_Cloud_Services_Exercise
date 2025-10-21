@@ -37,7 +37,7 @@ async function updateProgress(jobId, status, percent = 0, details = {}) {
     // Cache progress for fast polling access
     await cache.cacheJobProgress(jobId, progressData);
 
-    console.log(`📊 Progress stored: ${jobId} -> ${percent}% (${status})`);
+    console.log(`Progress stored: ${jobId} -> ${percent}% (${status})`);
   } catch (error) {
     console.error(`Failed to update progress for job ${jobId}:`, error);
   }
@@ -52,7 +52,7 @@ async function transcodeVideo(job) {
   
   try {
     const repeatCount = job.repeat_count || 1;
-    console.log(`🎬 Starting transcoding for job ${job.id}`);
+    console.log(`Starting transcoding for job ${job.id}`);
     console.log(`   Input: ${job.file_path || job.storage_key}`);
     console.log(`   Target: ${job.target_resolution} ${job.target_format}`);
     console.log(`   Quality: ${job.quality_preset || 'medium'} | Bitrate: ${job.bitrate || '1000k'}`);
@@ -60,7 +60,7 @@ async function transcodeVideo(job) {
 
     // Use signed URL for S3 files
     if (job.storage_key) {
-      console.log(`📥 Generating signed URL for S3 file: ${job.storage_key}`);
+      console.log(`Generating signed URL for S3 file: ${job.storage_key}`);
       const signedUrl = await storage.getFileUrl(job.storage_key, 7200, 'original');
       inputPath = signedUrl;
       console.log(`   Using signed URL for FFmpeg input`);
@@ -137,11 +137,11 @@ async function transcodeVideo(job) {
             });
           })
           .on('end', () => {
-            console.log(`   ✅ Iteration ${iteration} complete`);
+            console.log(`   Iteration ${iteration} complete`);
             resolve();
           })
           .on('error', (err) => {
-            console.error(`   ❌ FFmpeg error:`, err.message);
+            console.error(`   FFmpeg error:`, err.message);
             
             let userFriendlyError = err.message;
             if (err.message.includes('SIGKILL') || err.message.includes('killed')) {
@@ -174,7 +174,7 @@ async function transcodeVideo(job) {
           .audioCodec('copy')
           .format(job.target_format)
           .on('start', (commandLine) => {
-            console.log(`   📦 Concatenating ${repeatCount} iterations...`);
+            console.log(`   Concatenating ${repeatCount} iterations...`);
           })
           .on('progress', async (progress) => {
             const percent = Math.round(progress.percent || 0);
@@ -211,7 +211,7 @@ async function transcodeVideo(job) {
     }
 
     // Upload to S3
-    console.log(`   📤 Uploading processed file to S3...`);
+    console.log(`   Uploading processed file to S3...`);
     const outputBuffer = await fs.promises.readFile(outputPath);
     const outputFilename = `transcoded_${job.id}_${job.target_resolution}.${job.target_format}`;
 
@@ -222,7 +222,7 @@ async function transcodeVideo(job) {
     });
 
     outputStorageKey = uploadResult.key;
-    console.log(`   ✅ Uploaded to S3: ${outputStorageKey}`);
+    console.log(`   Uploaded to S3: ${outputStorageKey}`);
 
     // Clean up local file
     try {
@@ -242,7 +242,7 @@ async function transcodeVideo(job) {
       output_storage_key: outputStorageKey
     });
 
-    console.log(`   ✅ Job ${job.id} completed in ${processingTime} seconds`);
+    console.log(`   Job ${job.id} completed in ${processingTime} seconds`);
 
     await updateProgress(job.id, 'completed', 100, {
       processingTime: processingTime,
@@ -253,7 +253,7 @@ async function transcodeVideo(job) {
     await cache.invalidateUserJobs(job.user_id);
 
   } catch (error) {
-    console.error(`   ❌ Transcoding failed for job ${job.id}:`, error.message);
+    console.error(`   Transcoding failed for job ${job.id}:`, error.message);
 
     // Update job as failed
     await database.updateTranscodeJob(job.id, {
@@ -274,7 +274,7 @@ async function transcodeVideo(job) {
 
 // Poll SQS queue for new jobs
 async function pollQueue() {
-  console.log('🔍 Polling SQS queue for new jobs...');
+  console.log('Polling SQS queue for new jobs...');
   
   const receiveCommand = new ReceiveMessageCommand({
     QueueUrl: QUEUE_URL,
@@ -288,14 +288,14 @@ async function pollQueue() {
     
     if (result.Messages && result.Messages.length > 0) {
       const message = result.Messages[0];
-      console.log(`\n📩 Received message: ${message.MessageId}`);
+      console.log(`\nReceived message: ${message.MessageId}`);
       
       try {
         // Parse job from message
         const job = JSON.parse(message.Body);
         currentJob = job;
-        
-        console.log(`🎯 Processing job ${job.id || job.jobId}`);
+
+        console.log(`Processing job ${job.id || job.jobId}`);
         
         // Process the transcoding job
         await transcodeVideo(job);
@@ -307,10 +307,10 @@ async function pollQueue() {
         });
         
         await sqsClient.send(deleteCommand);
-        console.log(`✅ Message deleted from queue`);
-        
+        console.log(`Message deleted from queue`);
+
       } catch (error) {
-        console.error(`❌ Job processing failed:`, error.message);
+        console.error(`Job processing failed:`, error.message);
         // Message will not be deleted - will be requeued after visibility timeout
         // or sent to DLQ after max retries
       }
@@ -319,15 +319,15 @@ async function pollQueue() {
     } else {
       console.log('   No messages available');
     }
-    
+
   } catch (error) {
-    console.error(`❌ SQS polling error:`, error.message);
+    console.error(`SQS polling error:`, error.message);
   }
 }
 
 // Main worker loop
 async function startWorker() {
-  console.log('🚀 Transcoding Worker Started');
+  console.log('Transcoding Worker Started');
   console.log(`   Queue: ${QUEUE_URL}`);
   console.log(`   Region: ${AWS_REGION}`);
   console.log('');
@@ -340,13 +340,13 @@ async function startWorker() {
       await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
     }
   }
-  
-  console.log('👋 Worker shutdown complete');
+
+  console.log('Worker shutdown complete');
 }
 
 // Graceful shutdown handler
 function handleShutdown(signal) {
-  console.log(`\n⚠️  Received ${signal} signal`);
+  console.log(`\nReceived ${signal} signal`);
   
   if (currentJob) {
     console.log(`   Finishing current job: ${currentJob.id}`);
@@ -361,6 +361,6 @@ process.on('SIGINT', () => handleShutdown('SIGINT'));
 
 // Start the worker
 startWorker().catch(error => {
-  console.error('❌ Worker crashed:', error);
+  console.error('Worker crashed:', error);
   process.exit(1);
 });

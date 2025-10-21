@@ -235,7 +235,7 @@ router.get('/callback', async (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.sub || req.user.username;
-    console.log('🔍 /auth/me - User:', userId, 'Groups:', req.user.groups);
+    console.log('/auth/me - User:', userId, 'Groups:', req.user.groups);
 
     // Try cache first
     let userInfo = await cache.getUserSession(userId);
@@ -264,7 +264,7 @@ router.get('/me', authenticateToken, async (req, res) => {
       await cache.cacheUserSession(userId, userInfo);
     }
 
-    console.log('🔍 Returning role:', userInfo.role, 'for user:', userId);
+    console.log('Returning role:', userInfo.role, 'for user:', userId);
     res.json(userInfo);
   } catch (error) {
     console.error('Error in /auth/me:', error);

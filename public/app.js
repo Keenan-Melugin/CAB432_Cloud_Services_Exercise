@@ -192,7 +192,7 @@ async function confirmEmail() {
     }
 
     const originalText = button.textContent;
-    button.textContent = '⏳ Verifying...';
+    button.textContent = 'Verifying...';
     button.disabled = true;
 
     console.log('Starting verification request...');
@@ -209,24 +209,24 @@ async function confirmEmail() {
         console.log('Response data:', data);
 
         if (response.ok) {
-            showStatus('confirmationStatus', '✅ Email verified successfully! Redirecting to login...', 'success');
+            showStatus('confirmationStatus', 'Email verified successfully! Redirecting to login...', 'success');
 
             // Close modal and redirect to login after 1.5 seconds
             setTimeout(() => {
                 closeVerificationModal();
                 showLogin();
-                showStatus('loginStatus', '🎉 Account verified! Please log in with your credentials.', 'success');
+                showStatus('loginStatus', 'Account verified! Please log in with your credentials.', 'success');
             }, 1500);
         } else {
             console.log('Verification failed with error:', data.error);
-            showStatus('confirmationStatus', '❌ ' + (data.error || 'Email verification failed'), 'error');
+            showStatus('confirmationStatus', (data.error || 'Email verification failed'), 'error');
             // Reset button
             button.textContent = originalText;
             button.disabled = false;
         }
     } catch (error) {
         console.error('Verification request failed:', error);
-        showStatus('confirmationStatus', '❌ Verification error: ' + error.message, 'error');
+        showStatus('confirmationStatus', 'Verification error: ' + error.message, 'error');
         // Reset button
         button.textContent = originalText;
         button.disabled = false;
@@ -264,17 +264,17 @@ function showMFAModal(challengeData) {
 
     // Customize modal based on challenge type
     if (challengeData.challengeName === 'SMS_MFA') {
-        title.textContent = '📲 SMS Authentication';
+        title.textContent = 'SMS Authentication';
         message.textContent = 'We\'ve sent a 6-digit code to your phone:';
         label.textContent = 'Enter SMS Code:';
         help.textContent = 'Check your SMS messages for the verification code';
     } else if (challengeData.challengeName === 'SOFTWARE_TOKEN_MFA') {
-        title.textContent = '📱 Authenticator App';
+        title.textContent = 'Authenticator App';
         message.textContent = 'Enter the 6-digit code from your authenticator app:';
         label.textContent = 'Enter TOTP Code:';
         help.textContent = 'Open your authenticator app (Google Authenticator, Authy, etc.)';
     } else {
-        title.textContent = '🔐 Multi-Factor Authentication';
+        title.textContent = 'Multi-Factor Authentication';
         message.textContent = 'Please enter your verification code:';
         label.textContent = 'Enter Code:';
         help.textContent = 'Check your authentication method for the code';
@@ -314,7 +314,7 @@ async function submitMFAChallenge() {
 
     const button = document.querySelector('#mfaModal button');
     const originalText = button.textContent;
-    button.textContent = '🔄 Verifying...';
+    button.textContent = 'Verifying...';
     button.disabled = true;
 
     try {
@@ -392,7 +392,7 @@ function showMainApp() {
 
     // Show admin-specific features for admin users
     if (currentUser && currentUser.role === 'admin') {
-        console.log('🔥 Admin mode activated for', currentUser.email || currentUser.username);
+        console.log('Admin mode activated for', currentUser.email || currentUser.username);
 
         // Add admin background
         document.body.classList.add('admin-mode');
@@ -425,7 +425,7 @@ function showMainApp() {
 
 // Real-time job updates with reliable polling
 function startJobUpdates() {
-    console.log('🚀 Starting job update system');
+    console.log('Starting job update system');
     startProgressTracking();
 
     // Start slower background refresh for job list (every 10 seconds)
@@ -435,7 +435,7 @@ function startJobUpdates() {
     pollingInterval = setInterval(() => {
         // Only refresh if no active jobs (to avoid conflicts)
         if (activeJobs.size === 0) {
-            console.log('📋 Background job list refresh (no active jobs)');
+            console.log('Background job list refresh (no active jobs)');
             refreshJobs();
         }
     }, 10000);
@@ -449,7 +449,7 @@ const activeJobs = new Set();
 let progressInterval = null;
 
 function startProgressTracking() {
-    console.log('🔄 Starting reliable polling-based progress tracking');
+    console.log('Starting reliable polling-based progress tracking');
 
     // Poll for progress every 2 seconds
     if (progressInterval) {
@@ -458,7 +458,7 @@ function startProgressTracking() {
 
     progressInterval = setInterval(async () => {
         if (activeJobs.size > 0) {
-            console.log(`📊 Polling progress for ${activeJobs.size} active jobs`);
+            console.log(`Polling progress for ${activeJobs.size} active jobs`);
 
             for (const jobId of activeJobs) {
                 await checkJobProgress(jobId);
@@ -475,7 +475,7 @@ async function checkJobProgress(jobId) {
 
         if (response.ok) {
             const data = await response.json();
-            console.log(`📈 Progress for ${jobId}: ${data.progress}% (${data.status})`);
+            console.log(`Progress for ${jobId}: ${data.progress}% (${data.status})`);
 
             // Update progress bar
             updateJobProgressBar(jobId, data.progress, data);
@@ -492,7 +492,7 @@ async function checkJobProgress(jobId) {
             }
         }
     } catch (error) {
-        console.error(`❌ Error checking progress for ${jobId}:`, error);
+        console.error(`Error checking progress for ${jobId}:`, error);
     }
 }
 
@@ -510,7 +510,7 @@ function stopJobUpdates() {
         progressInterval = null;
     }
     activeJobs.clear();
-    console.log('🛑 All job updates stopped');
+    console.log('All job updates stopped');
 }
 
 function updateJobProgress(jobId, jobData) {
@@ -847,7 +847,7 @@ async function startTranscoding(jobId) {
 
             // Add job to tracking and start polling
             activeJobs.add(jobId);
-            console.log(`📋 Added job ${jobId} to active tracking`);
+            console.log(`Added job ${jobId} to active tracking`);
 
             refreshJobs();
         } else {
@@ -981,11 +981,11 @@ async function downloadVideo(jobId, originalFilename) {
 
 // Simple progress bar update function
 function updateJobProgressBar(jobId, percent, data = {}) {
-    console.log(`🎯 Updating progress bar: ${jobId} -> ${percent}%`);
+    console.log(`Updating progress bar: ${jobId} -> ${percent}%`);
 
     const jobDiv = document.querySelector(`[data-job-id="${jobId}"]`);
     if (!jobDiv) {
-        console.log('❌ Job div not found:', jobId);
+        console.log('Job div not found:', jobId);
         return;
     }
 
@@ -1015,9 +1015,9 @@ function updateJobProgressBar(jobId, percent, data = {}) {
             progressText.textContent = 'Complete!';
         }
 
-        console.log(`✅ Progress updated: ${percent}%`);
+        console.log(`Progress updated: ${percent}%`);
     } else {
-        console.log('❌ Progress elements not found for job:', jobId);
+        console.log('Progress elements not found for job:', jobId);
     }
 }
 
@@ -1048,7 +1048,7 @@ async function getSystemStats() {
 // Original Videos functionality
 async function loadOriginalVideos() {
     try {
-        console.log('🎬 Loading original videos...');
+        console.log('Loading original videos...');
         const response = await fetch('/videos', {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
@@ -1086,10 +1086,10 @@ function displayOriginalVideos(videos) {
             </div>
             <div class="video-actions">
                 <button onclick="streamVideo('${video.id}', '${video.filename}')" style="background-color: #28a745;">
-                    🎬 Watch
+                    Watch
                 </button>
                 <button onclick="downloadOriginalVideo('${video.id}', '${video.filename}')" style="background-color: #007bff;">
-                    📥 Download
+                    Download
                 </button>
             </div>
         </div>
@@ -1098,7 +1098,7 @@ function displayOriginalVideos(videos) {
 
 async function streamVideo(videoId, filename) {
     try {
-        console.log('🎥 Starting video stream for:', filename);
+        console.log('Starting video stream for:', filename);
 
         // Get streaming URL
         const response = await fetch(`/videos/${videoId}/stream`, {
@@ -1122,7 +1122,7 @@ async function streamVideo(videoId, filename) {
 
             modal.style.display = 'flex';
 
-            console.log('✅ Video stream ready');
+            console.log('Video stream ready');
         } else {
             const error = await response.text();
             alert('Failed to load video: ' + error);
@@ -1135,7 +1135,7 @@ async function streamVideo(videoId, filename) {
 
 async function downloadOriginalVideo(videoId, filename) {
     try {
-        console.log('📥 Starting download for:', filename);
+        console.log('Starting download for:', filename);
 
         const response = await fetch(`/videos/${videoId}/download`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
@@ -1153,7 +1153,7 @@ async function downloadOriginalVideo(videoId, filename) {
             a.click();
             document.body.removeChild(a);
 
-            console.log('✅ Download started');
+            console.log('Download started');
         } else {
             const error = await response.text();
             alert('Download failed: ' + error);
@@ -1172,7 +1172,7 @@ function closeVideoModal() {
     player.src = '';
     modal.style.display = 'none';
 
-    console.log('🔒 Video player closed');
+    console.log('Video player closed');
 }
 
 // Close modal when clicking outside the content
@@ -1343,12 +1343,12 @@ async function checkMFAStatus() {
             const statusElement = document.getElementById('currentMfaStatus');
             if (data.mfaEnabled) {
                 statusElement.innerHTML = `
-                    <span style="color: #28a745;">✅ Enabled</span><br>
+                    <span style="color: #28a745;">Enabled</span><br>
                     <small>Preferred method: ${data.preferredMfaMethod || 'Not set'}</small><br>
                     <small>Available methods: ${data.enabledMfaMethods?.join(', ') || 'None'}</small>
                 `;
             } else {
-                statusElement.innerHTML = '<span style="color: #dc3545;">❌ Disabled</span>';
+                statusElement.innerHTML = '<span style="color: #dc3545;">Disabled</span>';
             }
         } else {
             document.getElementById('currentMfaStatus').textContent = 'Error checking status';
@@ -1375,7 +1375,7 @@ async function setupTOTP() {
             // Show QR code and setup instructions
             showStatus('mfaSetupStatus', `
                 <div style="background: white; padding: 20px; border-radius: 8px; border: 1px solid #ddd;">
-                    <h3>📱 Setup Authenticator App</h3>
+                    <h3>Setup Authenticator App</h3>
                     <p><strong>Step 1:</strong> Install an authenticator app:</p>
                     <ul style="margin: 10px 0; padding-left: 20px;">
                         <li>Google Authenticator</li>
@@ -1399,7 +1399,7 @@ async function setupTOTP() {
                         <input type="text" id="totpVerificationCode" placeholder="000000" maxlength="6"
                                style="padding: 8px; font-size: 16px; text-align: center; width: 120px;">
                         <button onclick="completeTOTPSetup()" style="padding: 8px 16px;">
-                            ✅ Complete Setup
+                            Complete Setup
                         </button>
                     </div>
                 </div>
@@ -1434,7 +1434,7 @@ async function completeTOTPSetup() {
         const data = await response.json();
 
         if (response.ok) {
-            showStatus('mfaSetupStatus', 'TOTP setup completed successfully! 🎉', 'success');
+            showStatus('mfaSetupStatus', 'TOTP setup completed successfully!', 'success');
             setTimeout(() => checkMFAStatus(), 1000);
         } else {
             showStatus('mfaSetupStatus', data.error || 'TOTP verification failed', 'error');
@@ -1474,7 +1474,7 @@ async function setupSMS() {
         const data = await response.json();
 
         if (response.ok) {
-            showStatus('mfaSetupStatus', 'SMS MFA setup completed successfully! 🎉', 'success');
+            showStatus('mfaSetupStatus', 'SMS MFA setup completed successfully!', 'success');
             setTimeout(() => checkMFAStatus(), 1000);
         } else {
             showStatus('mfaSetupStatus', data.error || 'SMS setup failed', 'error');

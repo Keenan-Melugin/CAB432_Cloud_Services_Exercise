@@ -24,8 +24,8 @@ async function initializeRedis() {
 
     if (localRedisHost) {
       // Redis configuration from environment variables
-      console.log('🔧 Connecting to Redis using environment variables...');
-      console.log(`📍 Target: ${localRedisHost}:${localRedisPort}`);
+      console.log('Connecting to Redis using environment variables...');
+      console.log(`Target: ${localRedisHost}:${localRedisPort}`);
 
       redisClient = new Redis({
         host: localRedisHost,
@@ -38,14 +38,14 @@ async function initializeRedis() {
       });
     } else {
       // AWS ElastiCache configuration (production)
-      console.log('☁️  Connecting to AWS ElastiCache Redis...');
+      console.log('Connecting to AWS ElastiCache Redis...');
 
       let redisConfig;
       try {
         // Try to get configuration from Secrets Manager first
         redisConfig = await getSecret('redis-config');
       } catch (error) {
-        console.log('📋 Secrets Manager not available, using Parameter Store...');
+        console.log('Secrets Manager not available, using Parameter Store...');
         // Fallback to Parameter Store
         const endpoint = await parameterStore.getParameter('redis/endpoint');
         const port = await parameterStore.getParameter('redis/port');
@@ -84,29 +84,29 @@ async function initializeRedis() {
 
     // Set up event handlers
     redisClient.on('connect', () => {
-      console.log('✅ Redis connected successfully');
+      console.log('Redis connected successfully');
       isConnected = true;
       connectionError = null;
     });
 
     redisClient.on('error', (error) => {
-      console.error('❌ Redis connection error:', error.message);
+      console.error('Redis connection error:', error.message);
       isConnected = false;
       connectionError = error;
     });
 
     redisClient.on('close', () => {
-      console.log('🔌 Redis connection closed');
+      console.log('Redis connection closed');
       isConnected = false;
     });
 
     redisClient.on('reconnecting', () => {
-      console.log('🔄 Redis reconnecting...');
+      console.log('Redis reconnecting...');
     });
 
     // Test the connection
     await redisClient.ping();
-    console.log('🏓 Redis ping successful');
+    console.log('Redis ping successful');
 
     return redisClient;
 
@@ -115,13 +115,13 @@ async function initializeRedis() {
 
     // Provide specific guidance for common connection issues
     if (error.message.includes('ENOTFOUND')) {
-      console.log('💡 DNS resolution failed - check endpoint hostname');
+      console.log('DNS resolution failed - check endpoint hostname');
     } else if (error.message.includes('ETIMEDOUT') || error.message.includes('ECONNREFUSED')) {
-      console.log('💡 Connection blocked - likely network/security group issue');
-      console.log('   • For QUT AWS: ElastiCache may be blocked by institutional firewall');
-      console.log('   • Try: export REDIS_HOST="127.0.0.1" for local Redis testing');
+      console.log('Connection blocked - likely network/security group issue');
+      console.log('   For QUT AWS: ElastiCache may be blocked by institutional firewall');
+      console.log('   Try: export REDIS_HOST="127.0.0.1" for local Redis testing');
     } else if (error.message.includes('ECONNRESET')) {
-      console.log('💡 Connection reset - check authentication or encryption settings');
+      console.log('Connection reset - check authentication or encryption settings');
     }
 
     connectionError = error;
@@ -134,7 +134,7 @@ async function initializeRedis() {
 
 // Mock Redis client for graceful degradation
 function createMockRedis() {
-  console.log('⚠️  Creating mock Redis client - cache operations will be no-ops');
+  console.log('Creating mock Redis client - cache operations will be no-ops');
 
   return {
     get: async () => null,
@@ -183,7 +183,7 @@ async function closeRedis() {
   if (redisClient && !redisClient.isMock) {
     try {
       await redisClient.quit();
-      console.log('🔌 Redis connection closed gracefully');
+      console.log('Redis connection closed gracefully');
     } catch (error) {
       console.error('Error closing Redis connection:', error.message);
     }

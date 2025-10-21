@@ -26,7 +26,7 @@ const TRANSCODE_JOBS_TABLE = process.env.DYNAMODB_TABLE || 'videotranscoder-tran
  * @param {Object} context - Lambda context
  */
 exports.handler = async (event, context) => {
-  console.log('🚨 DLQ Handler triggered');
+  console.log('DLQ Handler triggered');
   console.log(`   Processing ${event.Records.length} failed message(s)`);
 
   const results = {
@@ -38,7 +38,7 @@ exports.handler = async (event, context) => {
   // Process each failed message from the DLQ
   for (const record of event.Records) {
     try {
-      console.log(`\n📩 Processing DLQ message: ${record.messageId}`);
+      console.log(`\nProcessing DLQ message: ${record.messageId}`);
 
       // Parse the original job data from message body
       const jobData = JSON.parse(record.body);
@@ -71,11 +71,11 @@ exports.handler = async (event, context) => {
       // Update job status in DynamoDB
       await updateJobStatus(jobId, failureReason, errorDetails);
 
-      console.log(`   ✅ Job ${jobId} marked as failed in database`);
+      console.log(`   Job ${jobId} marked as failed in database`);
       results.successful++;
 
     } catch (error) {
-      console.error(`   ❌ Failed to process DLQ message:`, error.message);
+      console.error(`   Failed to process DLQ message:`, error.message);
       results.failed++;
       results.errors.push({
         messageId: record.messageId,
@@ -85,9 +85,9 @@ exports.handler = async (event, context) => {
   }
 
   // Log summary
-  console.log(`\n📊 DLQ Processing Summary:`);
-  console.log(`   ✅ Successful: ${results.successful}`);
-  console.log(`   ❌ Failed: ${results.failed}`);
+  console.log(`\nDLQ Processing Summary:`);
+  console.log(`   Successful: ${results.successful}`);
+  console.log(`   Failed: ${results.failed}`);
 
   if (results.failed > 0) {
     console.log(`   Errors:`, JSON.stringify(results.errors, null, 2));

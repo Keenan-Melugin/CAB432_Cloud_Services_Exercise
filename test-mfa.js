@@ -24,16 +24,16 @@ class MFATester {
   }
 
   async test(name, testFunction) {
-    console.log(`\n🧪 Testing: ${name}`);
+    console.log(`\nTesting: ${name}`);
     try {
       await testFunction();
       this.results.passed++;
       this.results.tests.push({ name, status: 'PASSED' });
-      console.log(`✅ ${name} - PASSED`);
+      console.log(`${name} - PASSED`);
     } catch (error) {
       this.results.failed++;
       this.results.tests.push({ name, status: 'FAILED', error: error.message });
-      console.log(`❌ ${name} - FAILED: ${error.message}`);
+      console.log(`${name} - FAILED: ${error.message}`);
     }
   }
 
@@ -44,14 +44,14 @@ class MFATester {
         email: TEST_EMAIL,
         password: TEST_PASSWORD
       });
-      console.log('✅ Test user signup initiated');
+      console.log('Test user signup initiated');
 
       // Note: In real testing, you'd need to confirm the user
-      console.log('ℹ️  You need to manually confirm the test user or use admin commands');
+      console.log('You need to manually confirm the test user or use admin commands');
 
     } catch (error) {
       if (error.response?.data?.error === 'User already exists') {
-        console.log('ℹ️  Test user already exists, continuing...');
+        console.log('Test user already exists, continuing...');
       } else {
         throw error;
       }
@@ -95,8 +95,8 @@ class MFATester {
       throw new Error('TOTP setup should return valid QR code data');
     }
 
-    console.log('📱 TOTP Secret Code:', response.data.secretCode);
-    console.log('📱 QR Code Data:', response.data.qrCodeData);
+    console.log('TOTP Secret Code:', response.data.secretCode);
+    console.log('QR Code Data:', response.data.qrCodeData);
   }
 
   async testSMSSetup() {
@@ -150,7 +150,7 @@ class MFATester {
   }
 
   async runAllTests() {
-    console.log('🚀 Starting MFA Tests...\n');
+    console.log('Starting MFA Tests...\n');
 
     try {
       // Setup
@@ -168,30 +168,30 @@ class MFATester {
       await this.test('Error Handling', () => this.testErrorHandling());
 
     } catch (error) {
-      console.error('\n💥 Test setup failed:', error.message);
+      console.error('\nTest setup failed:', error.message);
     }
 
     // Results Summary
-    console.log('\n📊 Test Results Summary:');
+    console.log('\nTest Results Summary:');
     console.log('='.repeat(40));
-    console.log(`✅ Passed: ${this.results.passed}`);
-    console.log(`❌ Failed: ${this.results.failed}`);
-    console.log(`📈 Success Rate: ${((this.results.passed / (this.results.passed + this.results.failed)) * 100).toFixed(1)}%`);
+    console.log(`Passed: ${this.results.passed}`);
+    console.log(`Failed: ${this.results.failed}`);
+    console.log(`Success Rate: ${((this.results.passed / (this.results.passed + this.results.failed)) * 100).toFixed(1)}%`);
 
     if (this.results.failed > 0) {
-      console.log('\n❌ Failed Tests:');
+      console.log('\nFailed Tests:');
       this.results.tests
         .filter(test => test.status === 'FAILED')
         .forEach(test => {
-          console.log(`   • ${test.name}: ${test.error}`);
+          console.log(`   - ${test.name}: ${test.error}`);
         });
     }
 
-    console.log('\n📝 Manual Testing Steps:');
+    console.log('\nManual Testing Steps:');
     console.log('1. Use an authenticator app to scan the QR code from TOTP setup');
     console.log('2. Test the complete login flow with MFA enabled');
     console.log('3. Test MFA challenge with correct and incorrect codes');
-    console.log('\n📝 Note: SMS MFA testing skipped (requires AWS SNS configuration)');
+    console.log('\nNote: SMS MFA testing skipped (requires AWS SNS configuration)');
 
     return this.results.failed === 0;
   }
@@ -206,7 +206,7 @@ if (require.main === module) {
       process.exit(success ? 0 : 1);
     })
     .catch(error => {
-      console.error('💥 Test runner failed:', error);
+      console.error('Test runner failed:', error);
       process.exit(1);
     });
 }

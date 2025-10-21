@@ -53,11 +53,11 @@ async function getCognitoConfig(forceRefresh = false) {
       throw new Error('Missing required Cognito configuration: clientId, clientSecret, or userPoolId');
     }
 
-    console.log('🔑 Cognito configuration loaded successfully');
+    console.log('Cognito configuration loaded successfully');
     return cognitoConfigCache;
 
   } catch (error) {
-    console.error('❌ Failed to load Cognito configuration:', error.message);
+    console.error('Failed to load Cognito configuration:', error.message);
     throw error;
   }
 }

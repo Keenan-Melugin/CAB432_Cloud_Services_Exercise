@@ -26,7 +26,7 @@ async function updateProgress(jobId, status, percent = 0, details = {}) {
     // Cache progress for fast polling access
     await cache.cacheJobProgress(jobId, progressData);
 
-    console.log(`📊 Progress stored: ${jobId} -> ${percent}% (${status})`);
+    console.log(`Progress stored: ${jobId} -> ${percent}% (${status})`);
   } catch (error) {
     console.error(`Failed to update progress for job ${jobId}:`, error);
   }
@@ -214,7 +214,7 @@ router.post('/start/:jobId', authenticateToken, async (req, res) => {
       }
     });
 
-    console.log(`✅ Transcoding job queued to SQS: ${jobId}`);
+    console.log(`Transcoding job queued to SQS: ${jobId}`);
 
   } catch (error) {
     console.error('Error queueing transcoding job:', error);
@@ -246,7 +246,7 @@ router.get('/jobs', authenticateToken, async (req, res) => {
 
     if (!jobs) {
       // Cache miss - fetch from database
-      console.log(`📋 Cache miss for user jobs: ${userId}`);
+      console.log(`Cache miss for user jobs: ${userId}`);
       jobs = await database.getTranscodeJobsByUser(userId, userRole);
 
       if (!Array.isArray(jobs)) {
@@ -256,7 +256,7 @@ router.get('/jobs', authenticateToken, async (req, res) => {
       // Cache the results
       await cache.cacheUserJobs(userId, jobs);
     } else {
-      console.log(`🎯 Cache hit for user jobs: ${userId}`);
+      console.log(`Cache hit for user jobs: ${userId}`);
     }
 
     res.json(jobs);
@@ -368,10 +368,10 @@ router.get('/progress/:jobId', authenticateToken, async (req, res) => {
 
         // Cache the progress data for subsequent polls
         await cache.cacheJobProgress(jobId, progressData);
-        console.log(`📋 Progress from DB for ${jobId}: ${progressData.progress}%`);
+        console.log(`Progress from DB for ${jobId}: ${progressData.progress}%`);
       }
     } else {
-      console.log(`⚡ Progress from cache for ${jobId}: ${progressData.progress}%`);
+      console.log(`Progress from cache for ${jobId}: ${progressData.progress}%`);
     }
 
     if (progressData) {

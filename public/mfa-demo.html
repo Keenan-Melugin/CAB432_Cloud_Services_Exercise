@@ -178,7 +178,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>🔐 MFA Demo - Video Transcoding Service</h1>
+        <h1>MFA Demo - Video Transcoding Service</h1>
 
         <!-- Login Section -->
         <div class="step">
@@ -467,7 +467,7 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showMessage('totpSetupResult', 'TOTP setup completed successfully! 🎉', 'success');
+                    showMessage('totpSetupResult', 'TOTP setup completed successfully!', 'success');
                     document.getElementById('totpSetupInstructions').classList.add('hidden');
                     checkMFAStatus(); // Refresh status
                 } else {
@@ -497,7 +497,7 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showMessage('smsSetupResult', 'SMS MFA setup completed successfully! 📱', 'success');
+                    showMessage('smsSetupResult', 'SMS MFA setup completed successfully!', 'success');
                     checkMFAStatus(); // Refresh status
                 } else {
                     showMessage('smsSetupResult', `SMS setup failed: ${data.error}`, 'error');

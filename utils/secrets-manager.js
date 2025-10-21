@@ -20,12 +20,12 @@ const secretsCache = new Map();
 async function getSecret(secretName, forceRefresh = false) {
   // Check cache first unless force refresh
   if (!forceRefresh && secretsCache.has(secretName)) {
-    console.log(`📋 Using cached secret: ${secretName}`);
+    console.log(`Using cached secret: ${secretName}`);
     return secretsCache.get(secretName);
   }
 
   try {
-    console.log(`🔐 Retrieving secret from AWS: ${secretName}`);
+    console.log(`Retrieving secret from AWS: ${secretName}`);
 
     const command = new GetSecretValueCommand({
       SecretId: secretName
@@ -43,11 +43,11 @@ async function getSecret(secretName, forceRefresh = false) {
     // Cache the secret for future use
     secretsCache.set(secretName, secretObject);
 
-    console.log(`✅ Secret retrieved successfully: ${secretName}`);
+    console.log(`Secret retrieved successfully: ${secretName}`);
     return secretObject;
 
   } catch (error) {
-    console.error(`❌ Failed to retrieve secret ${secretName}:`, error.message);
+    console.error(`Failed to retrieve secret ${secretName}:`, error.message);
 
     // Re-throw with more context
     throw new Error(`Failed to retrieve secret ${secretName}: ${error.message}`);
@@ -72,12 +72,12 @@ async function getCognitoSecrets() {
       throw new Error(`Missing required Cognito secrets: ${missingFields.join(', ')}`);
     }
 
-    console.log('🔑 Cognito secrets loaded from Secrets Manager');
+    console.log('Cognito secrets loaded from Secrets Manager');
     return secrets;
 
   } catch (error) {
-    console.error('❌ Failed to load Cognito secrets from Secrets Manager:', error.message);
-    console.log('🔄 Falling back to environment variables');
+    console.error('Failed to load Cognito secrets from Secrets Manager:', error.message);
+    console.log('Falling back to environment variables');
 
     // Fallback to environment variables if Secrets Manager fails
     return {
@@ -94,7 +94,7 @@ async function getCognitoSecrets() {
  */
 function clearSecretsCache() {
   secretsCache.clear();
-  console.log('🗑️ Secrets cache cleared');
+  console.log('Secrets cache cleared');
 }
 
 /**
@@ -107,7 +107,7 @@ async function getDatabaseSecrets() {
   try {
     return await getSecret(secretName);
   } catch (error) {
-    console.warn('⚠️ Database secrets not found in Secrets Manager, using defaults');
+    console.warn('Database secrets not found in Secrets Manager, using defaults');
     return {};
   }
 }

@@ -238,7 +238,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
     if (!videos) {
       // Cache miss - fetch from database
-      console.log(`📋 Cache miss for user videos: ${userId}`);
+      console.log(`Cache miss for user videos: ${userId}`);
       videos = await database.getVideosByUser(userId, userRole);
 
       if (!Array.isArray(videos)) {
@@ -248,7 +248,7 @@ router.get('/', authenticateToken, async (req, res) => {
       // Cache the results
       await cache.cacheUserVideos(userId, videos);
     } else {
-      console.log(`🎯 Cache hit for user videos: ${userId}`);
+      console.log(`Cache hit for user videos: ${userId}`);
     }
 
     const mappedVideos = videos.map(video => ({

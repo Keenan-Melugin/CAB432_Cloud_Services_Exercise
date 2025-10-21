@@ -3,7 +3,7 @@
 # Generate Self-Signed SSL Certificate for Video Transcoding Service
 # This creates certificates for both localhost and the production domain
 
-echo "🔒 Generating SSL certificates for HTTPS..."
+echo "Generating SSL certificates for HTTPS..."
 
 # Create ssl directory
 mkdir -p ./ssl
@@ -23,12 +23,12 @@ extendedKeyUsage = serverAuth")
 # Clean up CSR file
 rm ./ssl/cert-request.csr
 
-echo "✅ SSL certificates generated:"
+echo "SSL certificates generated:"
 echo "   Private Key: ./ssl/private-key.pem"
 echo "   Certificate: ./ssl/certificate.pem"
 echo ""
-echo "⚠️  Note: This is a self-signed certificate."
+echo "Note: This is a self-signed certificate."
 echo "   Browsers will show a security warning that you can accept."
 echo ""
-echo "🔧 Certificate details:"
+echo "Certificate details:"
 openssl x509 -in ./ssl/certificate.pem -text -noout | grep -E "Subject:|DNS:"

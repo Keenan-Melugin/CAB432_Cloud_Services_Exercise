@@ -87,7 +87,7 @@ async function startHTTPSServer(app) {
     await fs.access(keyPath);
     await fs.access(certPath);
 
-    console.log('📁 SSL certificates found, starting HTTPS server...');
+    console.log('SSL certificates found, starting HTTPS server...');
 
     // Read SSL certificates
     const sslOptions = {
@@ -112,12 +112,12 @@ async function startHTTPSServer(app) {
       });
     });
 
-    console.log(`✅ HTTPS Server running on https://localhost:${httpsPort}`);
-    console.log(`🔒 Secure health check: https://localhost:${httpsPort}/health`);
-    console.log('🔐 SSL/TLS encryption enabled');
+    console.log(`HTTPS Server running on https://localhost:${httpsPort}`);
+    console.log(`Secure health check: https://localhost:${httpsPort}/health`);
+    console.log('SSL/TLS encryption enabled');
 
   } catch (error) {
-    console.log('⚠️  HTTPS server failed to start');
+    console.log('HTTPS server failed to start');
     console.log(`   Error: ${error.message}`);
 
     if (error.code === 'ENOENT') {

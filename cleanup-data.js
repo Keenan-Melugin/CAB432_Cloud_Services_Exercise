@@ -39,7 +39,7 @@ class DataCleanup {
 
   // Clean up S3 bucket
   async cleanupS3Bucket(bucketName) {
-    console.log(`\n🧹 Cleaning S3 bucket: ${bucketName}`);
+    console.log(`\nCleaning S3 bucket: ${bucketName}`);
 
     try {
       // List all objects in the bucket
@@ -56,15 +56,15 @@ class DataCleanup {
         const objects = listResponse.Contents || [];
 
         if (objects.length === 0) {
-          console.log(`  ✅ Bucket ${bucketName} is already empty`);
+          console.log(`  Bucket ${bucketName} is already empty`);
           break;
         }
 
-        console.log(`  📄 Found ${objects.length} objects to delete`);
+        console.log(`  Found ${objects.length} objects to delete`);
         totalObjects += objects.length;
 
         if (this.dryRun) {
-          console.log(`  🔍 [DRY RUN] Would delete ${objects.length} objects:`);
+          console.log(`  [DRY RUN] Would delete ${objects.length} objects:`);
           objects.slice(0, 5).forEach(obj => console.log(`    - ${obj.Key}`));
           if (objects.length > 5) console.log(`    ... and ${objects.length - 5} more`);
         } else {
@@ -79,10 +79,10 @@ class DataCleanup {
           const deleteCommand = new DeleteObjectsCommand(deleteParams);
           const deleteResponse = await s3Client.send(deleteCommand);
 
-          console.log(`  ✅ Deleted ${deleteResponse.Deleted?.length || 0} objects`);
+          console.log(`  Deleted ${deleteResponse.Deleted?.length || 0} objects`);
 
           if (deleteResponse.Errors?.length > 0) {
-            console.log(`  ⚠️  ${deleteResponse.Errors.length} deletion errors:`);
+            console.log(`  ${deleteResponse.Errors.length} deletion errors:`);
             deleteResponse.Errors.forEach(error =>
               console.log(`    - ${error.Key}: ${error.Message}`)
             );
@@ -92,13 +92,13 @@ class DataCleanup {
         continuationToken = listResponse.NextContinuationToken;
       } while (continuationToken);
 
-      console.log(`  🎯 Total objects processed: ${totalObjects}`);
+      console.log(`  Total objects processed: ${totalObjects}`);
 
     } catch (error) {
       if (error.name === 'NoSuchBucket') {
-        console.log(`  ℹ️  Bucket ${bucketName} does not exist`);
+        console.log(`  Bucket ${bucketName} does not exist`);
       } else {
-        console.error(`  ❌ Error cleaning bucket ${bucketName}:`, error.message);
+        console.error(`  Error cleaning bucket ${bucketName}:`, error.message);
         throw error;
       }
     }
@@ -106,7 +106,7 @@ class DataCleanup {
 
   // Clean up DynamoDB table
   async cleanupDynamoDBTable(tableName) {
-    console.log(`\n🧹 Cleaning DynamoDB table: ${tableName}`);
+    console.log(`\nCleaning DynamoDB table: ${tableName}`);
 
     try {
       // Scan all items in the table
@@ -124,15 +124,15 @@ class DataCleanup {
         const items = scanResponse.Items || [];
 
         if (items.length === 0) {
-          console.log(`  ✅ Table ${tableName} is already empty`);
+          console.log(`  Table ${tableName} is already empty`);
           break;
         }
 
-        console.log(`  📄 Found ${items.length} items to delete`);
+        console.log(`  Found ${items.length} items to delete`);
         totalItems += items.length;
 
         if (this.dryRun) {
-          console.log(`  🔍 [DRY RUN] Would delete ${items.length} items:`);
+          console.log(`  [DRY RUN] Would delete ${items.length} items:`);
           items.slice(0, 3).forEach(item => console.log(`    - ID: ${item.id}`));
           if (items.length > 3) console.log(`    ... and ${items.length - 3} more`);
         } else {
@@ -147,22 +147,22 @@ class DataCleanup {
               await docClient.send(deleteCommand);
               deletedCount++;
             } catch (deleteError) {
-              console.log(`    ⚠️  Failed to delete item ${item.id}: ${deleteError.message}`);
+              console.log(`    Failed to delete item ${item.id}: ${deleteError.message}`);
             }
           }
-          console.log(`  ✅ Deleted ${deletedCount}/${items.length} items`);
+          console.log(`  Deleted ${deletedCount}/${items.length} items`);
         }
 
         lastEvaluatedKey = scanResponse.LastEvaluatedKey;
       } while (lastEvaluatedKey);
 
-      console.log(`  🎯 Total items processed: ${totalItems}`);
+      console.log(`  Total items processed: ${totalItems}`);
 
     } catch (error) {
       if (error.name === 'ResourceNotFoundException') {
-        console.log(`  ℹ️  Table ${tableName} does not exist`);
+        console.log(`  Table ${tableName} does not exist`);
       } else {
-        console.error(`  ❌ Error cleaning table ${tableName}:`, error.message);
+        console.error(`  Error cleaning table ${tableName}:`, error.message);
         throw error;
       }
     }
@@ -170,21 +170,21 @@ class DataCleanup {
 
   // Main cleanup function
   async cleanup() {
-    console.log('🧹 Video Transcoder Data Cleanup Script');
+    console.log('Video Transcoder Data Cleanup Script');
     console.log('=====================================');
 
     if (this.dryRun) {
-      console.log('🔍 DRY RUN MODE - No data will be deleted');
+      console.log('DRY RUN MODE - No data will be deleted');
     } else {
-      console.log('⚠️  LIVE MODE - Data will be permanently deleted');
+      console.log('LIVE MODE - Data will be permanently deleted');
     }
 
     console.log('\nTarget Resources:');
-    console.log('📦 S3 Buckets:');
+    console.log('S3 Buckets:');
     console.log(`  - ${buckets.original} (original videos)`);
     console.log(`  - ${buckets.processed} (processed videos)`);
 
-    console.log('🗃️  DynamoDB Tables:');
+    console.log('DynamoDB Tables:');
     Object.entries(tableNames).forEach(([key, tableName]) => {
       console.log(`  - ${tableName} (${key})`);
     });
@@ -192,11 +192,11 @@ class DataCleanup {
     // Safety confirmation
     if (!this.dryRun) {
       const confirmed = await this.askConfirmation(
-        '\n⚠️  This will permanently delete ALL videos and database records. Are you sure?'
+        '\nThis will permanently delete ALL videos and database records. Are you sure?'
       );
 
       if (!confirmed) {
-        console.log('❌ Cleanup cancelled by user');
+        console.log('Cleanup cancelled by user');
         return;
       }
 
@@ -205,36 +205,36 @@ class DataCleanup {
       );
 
       if (!doubleConfirmed) {
-        console.log('❌ Cleanup cancelled by user');
+        console.log('Cleanup cancelled by user');
         return;
       }
     }
 
-    console.log('\n🚀 Starting cleanup...');
+    console.log('\nStarting cleanup...');
 
     try {
       // Clean S3 buckets
-      console.log('\n📦 Cleaning S3 Buckets...');
+      console.log('\nCleaning S3 Buckets...');
       await this.cleanupS3Bucket(buckets.original);
       await this.cleanupS3Bucket(buckets.processed);
 
       // Clean DynamoDB tables
-      console.log('\n🗃️  Cleaning DynamoDB Tables...');
+      console.log('\nCleaning DynamoDB Tables...');
       for (const [key, tableName] of Object.entries(tableNames)) {
         await this.cleanupDynamoDBTable(tableName);
       }
 
-      console.log('\n✅ Cleanup completed successfully!');
+      console.log('\nCleanup completed successfully!');
 
       if (this.dryRun) {
-        console.log('🔍 This was a dry run - no data was actually deleted');
-        console.log('💡 Run with --live to perform actual cleanup');
+        console.log('This was a dry run - no data was actually deleted');
+        console.log('Run with --live to perform actual cleanup');
       } else {
-        console.log('🎯 All video files and database records have been removed');
+        console.log('All video files and database records have been removed');
       }
 
     } catch (error) {
-      console.error('\n❌ Cleanup failed:', error.message);
+      console.error('\nCleanup failed:', error.message);
       process.exit(1);
     }
   }

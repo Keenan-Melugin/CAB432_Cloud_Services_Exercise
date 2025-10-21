@@ -350,7 +350,7 @@
         </div>
 
         <button onclick="loginWithGoogle()" style="background: #4285f4; color: white; width: 100%; margin-bottom: 10px;">
-            🔍 Sign in with Google
+            Sign in with Google
         </button>
 
         <div style="margin: 20px 0; text-align: center;">
@@ -395,7 +395,7 @@
     <div id="verificationModal" class="modal">
         <div class="modal-content">
             <span class="modal-close" onclick="closeVerificationModal()">&times;</span>
-            <h2>📧 Verify Your Email</h2>
+            <h2>Verify Your Email</h2>
             <p>We've sent a 6-digit verification code to:</p>
             <p style="font-weight: bold; color: #007bff; margin: 10px 0;"><span id="confirmationEmail"></span></p>
 
@@ -413,7 +413,7 @@
             </div>
 
             <button onclick="confirmEmail()" style="width: 100%; margin: 10px 0; padding: 12px;">
-                ✅ Verify Email
+                Verify Email
             </button>
 
             <div style="text-align: center; margin: 20px 0;">
@@ -431,7 +431,7 @@
     <div id="mfaModal" class="modal">
         <div class="modal-content">
             <span class="modal-close" onclick="closeMFAModal()">&times;</span>
-            <h2 id="mfaTitle">🔐 Multi-Factor Authentication</h2>
+            <h2 id="mfaTitle">Multi-Factor Authentication</h2>
             <p id="mfaMessage">Please enter your verification code:</p>
 
             <div style="margin: 25px 0;">
@@ -448,7 +448,7 @@
             </div>
 
             <button onclick="submitMFAChallenge()" style="width: 100%; margin: 10px 0; padding: 12px;">
-                ✅ Verify
+                Verify
             </button>
 
             <div style="text-align: center; margin: 20px 0;">
@@ -467,7 +467,7 @@
         <!-- Admin Banner (shown only for admins) -->
         <div class="container" id="adminBanner" style="display: none;">
             <div class="admin-banner">
-                🔥 ADMINISTRATOR ACCESS GRANTED 🔥
+                ADMINISTRATOR ACCESS GRANTED
                 <div style="font-size: 14px; margin-top: 5px; font-weight: normal;">
                     You have full system privileges and can view all user data
                 </div>
@@ -620,7 +620,7 @@
 
         <!-- MFA Setup Section -->
         <div class="container" id="mfaSection">
-            <h2>🔐 Multi-Factor Authentication</h2>
+            <h2>Multi-Factor Authentication</h2>
             <p>Enhance your account security with two-factor authentication</p>
 
             <div id="mfaStatusDisplay" style="margin: 15px 0; padding: 10px; border-radius: 4px; background: #f8f9fa; border: 1px solid #dee2e6;">
@@ -629,16 +629,16 @@
 
             <div style="display: flex; gap: 15px; flex-wrap: wrap; margin: 20px 0;">
                 <button onclick="setupTOTP()" style="background-color: #28a745;">
-                    📱 Setup Authenticator App (TOTP)
+                    Setup Authenticator App (TOTP)
                 </button>
                 <button onclick="setupSMS()" style="background-color: #17a2b8;">
-                    📲 Setup SMS Authentication
+                    Setup SMS Authentication
                 </button>
                 <button onclick="checkMFAStatus()">
-                    🔍 Check MFA Status
+                    Check MFA Status
                 </button>
                 <button onclick="disableMFA()" style="background-color: #dc3545;">
-                    ❌ Disable MFA
+                    Disable MFA
                 </button>
             </div>
 
